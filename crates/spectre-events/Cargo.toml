@@ -1,0 +1,45 @@
+[package]
+name = "spectre-events"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "spectre_events"
+path = "src/lib.rs"
+
+[dependencies]
+# SPECTRE core
+spectre-core = { path = "../spectre-core" }
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+tokio-stream.workspace = true
+futures = "0.3"
+
+# NATS client
+async-nats.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# UUID
+uuid.workspace = true
+
+# Time
+chrono.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
