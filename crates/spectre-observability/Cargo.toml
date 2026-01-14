@@ -1,0 +1,16 @@
+[package]
+name = "spectre-observability"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+spectre-core = { path = "../spectre-core" }
+
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+serde.workspace = true
+tokio.workspace = true
+opentelemetry.workspace = true
+prometheus.workspace = true
