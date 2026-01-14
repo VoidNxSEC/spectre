@@ -1,0 +1,23 @@
+[package]
+name = "spectre-secrets"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+spectre-core = { path = "../spectre-core" }
+spectre-events = { path = "../spectre-events" }
+# vault_core = { path = "../../cognitive-vault/core" }  # TODO Phase 1: Extract crypto from cognitive-vault
+
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+aes-gcm.workspace = true
+argon2.workspace = true
+zeroize.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+rand = "0.8"
