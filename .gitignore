@@ -1,0 +1,48 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nix
+result
+result-*
+
+# Logs
+*.log
+/tmp/
+
+# Test artifacts
+*.profraw
+*.profdata
+
+# Environment
+.env
+.env.local
+
+# Domain projects (separate repositories in ~/dev/low-level/)
+# These should NOT be committed to SPECTRE repo
+ai-agent-os/
+arch-analyzer/
+cognitive-vault/
+intelagent/
+ml-offload-api/
+ragtex/
+securellm-bridge/
+
+# Empty directories removed during cleanup
+docs/
+grafana/
+nix/
+python/
