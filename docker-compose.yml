@@ -1,0 +1,103 @@
+# SPECTRE Fleet Development Environment
+# Services: NATS, TimescaleDB (PostgreSQL), Neo4j
+
+services:
+  # NATS - Message Bus (Primary)
+  nats:
+    image: nats:2.10-alpine
+    container_name: spectre-nats
+    ports:
+      - "4222:4222" # Client connections
+      - "8222:8222" # HTTP monitoring
+      - "6222:6222" # Cluster routing
+    command:
+      [
+        "--http_port=8222", # HTTP monitoring
+        "--jetstream", # Enable JetStream for persistence
+        "--store_dir=/data" # Persistent storage
+      ]
+    volumes:
+      - nats-data:/data
+    networks:
+      - spectre-net
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # TimescaleDB - Time-Series Database (for Observability)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: spectre-timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: spectre
+      POSTGRES_PASSWORD: spectre_dev_password # Change in production!
+      POSTGRES_DB: spectre_observability
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+      - ./scripts/init-timescaledb.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - spectre-net
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U spectre" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Neo4j - Graph Database (for Service Dependency Graph)
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: spectre-neo4j
+    ports:
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
+    environment:
+      NEO4J_AUTH: neo4j/spectre_dev_password # Change in production!
+      NEO4J_dbms_memory_heap_max__size: 512M
+      NEO4J_dbms_memory_pagecache_size: 256M
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    networks:
+      - spectre-net
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "cypher-shell", "-u", "neo4j", "-p", "spectre_dev_password", "RETURN 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # Redis (Optional fallback for NATS)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: spectre-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - spectre-net
+  #   restart: unless-stopped
+
+volumes:
+  nats-data:
+    driver: local
+  timescaledb-data:
+    driver: local
+  neo4j-data:
+    driver: local
+  neo4j-logs:
+    driver: local
+  # redis-data:
+  #   driver: local
+
+networks:
+  spectre-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
