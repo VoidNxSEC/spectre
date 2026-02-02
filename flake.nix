@@ -8,10 +8,22 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      rust-overlay,
+      sops-nix,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
@@ -20,7 +32,10 @@
 
         # Rust toolchain
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
-          extensions = [ "rust-src" "rust-analyzer" ];
+          extensions = [
+            "rust-src"
+            "rust-analyzer"
+          ];
         };
 
         # Common build inputs
@@ -59,6 +74,11 @@
           jq
           ripgrep
           fd
+
+          # Security tools
+          sops
+          age
+          ssh-to-age
         ];
 
       in
@@ -110,22 +130,28 @@
         # Checks (CI/CD)
         checks = {
           # Rust formatting
-          fmt = pkgs.runCommand "check-rust-fmt" {
-            buildInputs = [ rustToolchain ];
-          } ''
-            cd ${self}
-            cargo fmt -- --check
-            touch $out
-          '';
+          fmt =
+            pkgs.runCommand "check-rust-fmt"
+              {
+                buildInputs = [ rustToolchain ];
+              }
+              ''
+                cd ${self}
+                cargo fmt -- --check
+                touch $out
+              '';
 
           # Rust clippy
-          clippy = pkgs.runCommand "check-rust-clippy" {
-            buildInputs = [ rustToolchain ] ++ commonBuildInputs;
-          } ''
-            cd ${self}
-            cargo clippy --all-targets --all-features -- -D warnings
-            touch $out
-          '';
+          clippy =
+            pkgs.runCommand "check-rust-clippy"
+              {
+                buildInputs = [ rustToolchain ] ++ commonBuildInputs;
+              }
+              ''
+                cd ${self}
+                cargo clippy --all-targets --all-features -- -D warnings
+                touch $out
+              '';
 
           # Tests (requires NATS running)
           # test = pkgs.runCommand "check-tests" {
