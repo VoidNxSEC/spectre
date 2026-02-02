@@ -1,32 +1,22 @@
 [package]
 name = "spectre-proxy"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-spectre-core = { path = "../spectre-core" }
-spectre-events = { path = "../spectre-events" }
+anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
 spectre-secrets = { path = "../spectre-secrets" }
-spectre-observability = { path = "../spectre-observability" }
-
-anyhow.workspace = true
-tokio.workspace = true
-axum.workspace = true
-tower = { version = "0.4", features = ["limit", "buffer"] }
-rustls.workspace = true
-tracing.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tower-http = { version = "0.5", features = ["full"] }
-rustls-pemfile = "2.0"
-dotenv = "0.15"
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["trace", "auth", "cors"] }
 jsonwebtoken = "9.2"
-axum-extra = { version = "0.9", features = ["typed-header"] }
+secrecy = { version = "0.8", features = ["serde"] }
+reqwest = { version = "0.11", features = ["json"] }
+
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }
-jsonwebtoken = "9.2"
-spectre-events = { path = "../spectre-events" }
-tokio = { workspace = true, features = ["full"] }
