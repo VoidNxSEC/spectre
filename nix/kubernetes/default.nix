@@ -73,12 +73,14 @@ let
   mkManifests = config:
     let
       cfg = mkConfig config;
+      natsManifests = import ./nats.nix { inherit lib; k8sLib = k8sLib; config = cfg; };
     in
     [
       (import ./deployment.nix { inherit lib; k8sLib = k8sLib; config = cfg; })
       (import ./service.nix { inherit lib; k8sLib = k8sLib; config = cfg; })
       (import ./configmap.nix { inherit lib; k8sLib = k8sLib; config = cfg; })
-    ] ++ lib.optional cfg.ingress.enabled
+    ] ++ natsManifests
+      ++ lib.optional cfg.ingress.enabled
       (import ./ingress.nix { inherit lib; k8sLib = k8sLib; config = cfg; });
 
   # Convert manifests to YAML
