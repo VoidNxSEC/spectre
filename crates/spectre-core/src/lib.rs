@@ -39,10 +39,12 @@
 pub mod config;
 pub mod error;
 pub mod logging;
+pub mod shutdown;
 pub mod types;
 
 // Re-exports for convenience
 pub use config::{Config, ConfigLoader};
 pub use error::{Result, SpectreError};
 pub use logging::init_logging;
+pub use shutdown::shutdown_signal;
 pub use types::{CorrelationId, ServiceId, TraceId};
