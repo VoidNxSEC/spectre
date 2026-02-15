@@ -100,6 +100,13 @@ impl EventBus {
             .await
             .map_err(|e| SpectreError::event_bus(format!("Failed to connect to NATS: {}", e)))?;
 
+        // Flush to ensure the connection is fully established
+        // (retry_on_initial_connect may return before handshake completes)
+        client
+            .flush()
+            .await
+            .map_err(|e| SpectreError::event_bus(format!("Failed to flush on connect: {}", e)))?;
+
         info!("Connected to NATS successfully");
 
         Ok(Self { client, config })

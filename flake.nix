@@ -55,8 +55,9 @@
           openssl
           sqlite
 
-          # NATS CLI for debugging
+          # NATS
           natscli
+          nats-server
 
           # Docker for dev environment
           docker-compose
@@ -93,7 +94,7 @@
               echo "🚀 SPECTRE Fleet Development Environment"
               echo ""
               echo "Available services:"
-              echo "  • NATS:         docker-compose up nats"
+              echo "  • NATS:         nix run .#nats"
               echo "  • TimescaleDB:  docker-compose up timescaledb"
               echo "  • Neo4j:        docker-compose up neo4j"
               echo "  • All:          docker-compose up -d"
@@ -170,6 +171,12 @@
               inherit pkgs;
             };
 
+            # Import NATS module
+            natsModule = import ./nix/services/nats {
+              inherit (pkgs) lib;
+              inherit pkgs;
+            };
+
             # Build spectre-proxy Rust binary
             spectre-proxy = pkgs.rustPlatform.buildRustPackage {
               pname = "spectre-proxy";
@@ -218,6 +225,10 @@
             # Kubernetes manifests
             kubernetes-manifests-dev = mkManifests "dev";
             kubernetes-manifests-prod = mkManifests "prod";
+
+            # NATS server packages
+            nats-server-dev = natsModule.mkServerPackage natsModule.environments.dev;
+            nats-server-prod = natsModule.mkServerPackage natsModule.environments.prod;
 
             # Default package
             default = spectre-proxy;
@@ -292,6 +303,12 @@
                   ${pkgs.coreutils}/bin/cat ${self.packages.${system}.kubernetes-manifests-prod}
                 ''
               );
+            };
+
+            # Run NATS server (dev)
+            nats = {
+              type = "app";
+              program = "${self.packages.${system}.nats-server-dev}/bin/nats-server-spectre";
             };
 
             # Load image to Docker daemon

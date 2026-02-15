@@ -21,6 +21,52 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
 
+// ── OpenTelemetry Context Propagation ─────────────────────────────────────
+
+/// Extracts W3C traceparent from incoming HTTP headers into the OpenTelemetry context.
+struct HeaderExtractor<'a>(&'a axum::http::HeaderMap);
+
+impl<'a> opentelemetry::propagation::Extractor for HeaderExtractor<'a> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|v| v.to_str().ok())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(|k| k.as_str()).collect()
+    }
+}
+
+/// Custom MakeSpan that extracts W3C trace context from incoming headers
+/// and creates the span with the correct parent, ensuring distributed
+/// trace correlation works across services.
+#[derive(Clone)]
+struct OtelMakeSpan;
+
+impl<B> tower_http::trace::MakeSpan<B> for OtelMakeSpan {
+    fn make_span(&mut self, request: &Request<B>) -> tracing::Span {
+        use opentelemetry::trace::TraceContextExt;
+        use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+        // Create the span first
+        let span = tracing::info_span!(
+            "request",
+            method = %request.method(),
+            uri = %request.uri(),
+            version = ?request.version(),
+        );
+
+        // Extract and attach parent context from W3C traceparent header
+        let parent_cx = opentelemetry::global::get_text_map_propagator(|propagator| {
+            propagator.extract(&HeaderExtractor(request.headers()))
+        });
+        if parent_cx.span().span_context().is_valid() {
+            span.set_parent(parent_cx);
+        }
+
+        span
+    }
+}
+
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -326,7 +372,7 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .merge(public_routes)
         .merge(api_routes)
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(OtelMakeSpan))
         .with_state(state.clone());
 
     // 6. Bind with optional TLS

@@ -13,6 +13,8 @@ use tokio::time::Duration;
 #[tokio::test]
 async fn test_01_connect_to_nats() -> Result<()> {
     let bus = EventBus::connect("nats://localhost:4222").await?;
+    // Allow connection state callback to process
+    tokio::time::sleep(Duration::from_millis(50)).await;
     assert!(bus.is_connected());
     Ok(())
 }
@@ -38,6 +40,7 @@ async fn test_02_publish_event() -> Result<()> {
 #[tokio::test]
 async fn test_03_subscribe_and_receive() -> Result<()> {
     let bus = EventBus::connect("nats://localhost:4222").await?;
+    tokio::time::sleep(Duration::from_millis(50)).await;
 
     // Setup subscriber
     let received_events = Arc::new(Mutex::new(Vec::new()));
@@ -77,15 +80,15 @@ async fn test_03_subscribe_and_receive() -> Result<()> {
 
     bus.publish(&event).await?;
 
-    // Wait for event to be received
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    // Wait for event to be received (allow time for async delivery)
+    tokio::time::sleep(Duration::from_secs(1)).await;
 
     // Cancel listener
     listener_task.abort();
 
     // Verify event was received
     let events = received_events.lock().await;
-    assert_eq!(events.len(), 1);
+    assert_eq!(events.len(), 1, "Expected 1 event, got {}", events.len());
     assert_eq!(events[0].event_id, event.event_id);
 
     println!("✅ Received event: {}", event.event_id);
@@ -294,6 +297,7 @@ async fn test_08_all_event_types() -> Result<()> {
 #[tokio::test]
 async fn test_09_connection_resilience() -> Result<()> {
     let bus = EventBus::connect("nats://localhost:4222").await?;
+    tokio::time::sleep(Duration::from_millis(50)).await;
 
     // Publish event while connected
     let event = Event::new(

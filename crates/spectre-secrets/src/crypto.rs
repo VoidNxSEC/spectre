@@ -24,8 +24,11 @@ pub struct CryptoEngine {
 impl CryptoEngine {
     /// Derive a 256-bit key from password and salt using Argon2id
     pub fn new(password: &str, salt: &[u8]) -> Result<Self> {
-        if salt.is_empty() {
-            return Err(anyhow!("Salt must not be empty"));
+        if salt.len() < 8 {
+            return Err(anyhow!(
+                "Salt must be at least 8 bytes (got {})",
+                salt.len()
+            ));
         }
 
         let mut key_bytes = [0u8; 32];
@@ -116,6 +119,12 @@ mod tests {
     #[test]
     fn test_empty_salt_rejected() {
         let result = CryptoEngine::new("password", &[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_short_salt_rejected() {
+        let result = CryptoEngine::new("password", &[1, 2, 3, 4, 5, 6, 7]);
         assert!(result.is_err());
     }
 

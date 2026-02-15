@@ -7,7 +7,7 @@ pub mod metrics;
 
 use anyhow::Result;
 use opentelemetry::{global, KeyValue};
-use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_otlp::{Protocol, WithExportConfig};
 use opentelemetry_sdk::{
     propagation::TraceContextPropagator, resource::Resource, trace as sdktrace,
 };
@@ -19,8 +19,12 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 ///
 /// Returns `Result` instead of panicking on initialization failures.
 pub fn init(service_name: &str) -> Result<()> {
-    // 1. Set global propagator
+    // 1. Set global propagator and error handler
     global::set_text_map_propagator(TraceContextPropagator::new());
+    global::set_error_handler(|err| {
+        eprintln!("[OTEL ERROR] {}", err);
+    })
+    .ok();
 
     // 2. Register custom Prometheus metrics
     metrics::register_metrics();
@@ -47,20 +51,42 @@ pub fn init(service_name: &str) -> Result<()> {
 
         let sampler = sdktrace::Sampler::TraceIdRatioBased(sample_ratio);
 
-        let tracer_result = opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .tonic()
-                    .with_endpoint(otlp_endpoint),
-            )
-            .with_trace_config(
-                sdktrace::config()
-                    .with_resource(resource)
-                    .with_sampler(sampler),
-            )
-            .install_batch(opentelemetry_sdk::runtime::Tokio)
-            .map_err(|e| anyhow::anyhow!("Failed to initialize OTLP tracer: {}", e));
+        // Use OTEL_EXPORTER_OTLP_PROTOCOL to select transport (default: http/protobuf)
+        let protocol = std::env::var("OTEL_EXPORTER_OTLP_PROTOCOL")
+            .unwrap_or_else(|_| "http/protobuf".to_string());
+
+        let tracer_result = if protocol == "grpc" {
+            opentelemetry_otlp::new_pipeline()
+                .tracing()
+                .with_exporter(
+                    opentelemetry_otlp::new_exporter()
+                        .tonic()
+                        .with_endpoint(&otlp_endpoint),
+                )
+                .with_trace_config(
+                    sdktrace::config()
+                        .with_resource(resource)
+                        .with_sampler(sampler),
+                )
+                .install_batch(opentelemetry_sdk::runtime::Tokio)
+        } else {
+            // HTTP/protobuf (more reliable, works with Jaeger OTLP HTTP endpoint)
+            opentelemetry_otlp::new_pipeline()
+                .tracing()
+                .with_exporter(
+                    opentelemetry_otlp::new_exporter()
+                        .http()
+                        .with_endpoint(&otlp_endpoint)
+                        .with_protocol(Protocol::HttpBinary),
+                )
+                .with_trace_config(
+                    sdktrace::config()
+                        .with_resource(resource)
+                        .with_sampler(sampler),
+                )
+                .install_batch(opentelemetry_sdk::runtime::Tokio)
+        }
+        .map_err(|e| anyhow::anyhow!("Failed to initialize OTLP tracer: {}", e));
 
         Some(tracer_result)
     };
