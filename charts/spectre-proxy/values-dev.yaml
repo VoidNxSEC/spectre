@@ -1,0 +1,69 @@
+# Development environment overrides
+
+## Single replica for dev
+replicaCount: 1
+
+## Use local/dev image
+image:
+  repository: spectre-proxy
+  tag: dev
+  pullPolicy: Never  # For local images loaded into kind/minikube
+
+## Ingress with dev domain (no TLS)
+ingress:
+  enabled: true
+  host: spectre-dev.local
+  tls:
+    enabled: false
+
+## Point to local NATS (via port-forward or in-cluster)
+nats:
+  url: "nats://localhost:4222"
+
+## Point to local upstream
+neutron:
+  url: "http://localhost:8000"
+
+## More permissive rate limiting for development
+rateLimit:
+  rps: 1000
+  burst: 2000
+
+## 100% trace sampling in dev
+observability:
+  otlpEndpoint: "http://localhost:4317"
+  samplingRate: "1.0"
+
+## Pretty logs for development
+logging:
+  level: debug
+  format: pretty
+
+environment: development
+
+## Disable metrics scraping in dev (optional)
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+
+## Disable autoscaling in dev
+autoscaling:
+  enabled: false
+
+## Disable PDB in dev (single replica)
+podDisruptionBudget:
+  enabled: false
+
+## Lower resource requirements for dev
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+## Dev secret (not sensitive)
+secrets:
+  jwtSecret: "dev-secret-not-for-production"

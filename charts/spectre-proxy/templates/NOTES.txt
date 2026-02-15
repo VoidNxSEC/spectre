@@ -1,0 +1,64 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+═══════════════════════════════════════════════════════════════
+
+🚀 SPECTRE Proxy is now deployed!
+
+{{- if .Values.ingress.enabled }}
+
+📡 Access the proxy at:
+{{- if .Values.ingress.tls.enabled }}
+   https://{{ .Values.ingress.host }}
+{{- else }}
+   http://{{ .Values.ingress.host }}
+{{- end }}
+
+{{- else }}
+
+📡 To access the proxy, forward the service port:
+
+   kubectl port-forward svc/{{ include "spectre-proxy.fullname" . }} 8080:{{ .Values.service.port }}
+
+   Then access: http://localhost:8080
+
+{{- end }}
+
+🏥 Health Checks:
+   Liveness:  {{ .Values.ingress.host }}/health
+   Readiness: {{ .Values.ingress.host }}/ready
+
+📊 Metrics (if enabled):
+{{- if .Values.metrics.enabled }}
+   Endpoint: {{ .Values.ingress.host }}/metrics
+{{- if .Values.metrics.serviceMonitor.enabled }}
+   ServiceMonitor: Configured for Prometheus Operator
+{{- end }}
+{{- else }}
+   Metrics are disabled
+{{- end }}
+
+⚙️  Configuration:
+   NATS:     {{ .Values.nats.url }}
+   Upstream: {{ .Values.neutron.url }}
+   Environment: {{ .Values.environment }}
+   Replicas: {{ if .Values.autoscaling.enabled }}{{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }} (HPA){{ else }}{{ .Values.replicaCount }}{{ end }}
+
+{{- if not .Values.secrets.jwtSecret }}
+
+⚠️  WARNING: No JWT secret configured!
+   Set via: --set secrets.jwtSecret=<your-secret>
+   Or configure External Secrets Operator
+
+{{- end }}
+
+═══════════════════════════════════════════════════════════════
+
+📚 Documentation: https://github.com/your-org/spectre
+🐛 Issues: https://github.com/your-org/spectre/issues

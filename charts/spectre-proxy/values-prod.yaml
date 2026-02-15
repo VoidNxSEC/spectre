@@ -1,0 +1,101 @@
+# Production environment overrides
+
+## Higher replica count for HA
+replicaCount: 3
+
+## Production image from registry
+image:
+  repository: ghcr.io/your-org/spectre-proxy
+  # Tag should be set by CI/CD: --set image.tag=$GITHUB_SHA
+  tag: ""
+  pullPolicy: IfNotPresent
+
+## Production ingress with TLS
+ingress:
+  enabled: true
+  className: nginx
+  host: spectre.production.com
+  annotations:
+    # Additional production annotations
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+  tls:
+    enabled: true
+    issuer: letsencrypt-prod
+
+## Production NATS cluster
+nats:
+  url: "nats://nats-cluster.nats.svc.cluster.local:4222"
+
+## Production upstream
+neutron:
+  url: "http://neutron.production.svc.cluster.local:8000"
+
+## Production rate limiting
+rateLimit:
+  rps: 100
+  burst: 200
+
+## Lower sampling rate for production (reduce cost)
+observability:
+  otlpEndpoint: "http://tempo-distributor.observability.svc.cluster.local:4317"
+  samplingRate: "0.05"  # 5%
+
+## JSON logs for production
+logging:
+  level: info
+  format: json
+
+environment: production
+
+## Enable metrics and ServiceMonitor
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      prometheus: kube-prometheus
+
+## Aggressive autoscaling for production
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 75
+  scaleDownStabilizationSeconds: 300
+
+## Production PDB (ensure 2 pods always available)
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+## Higher resources for production
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+## Node affinity for production nodes (optional)
+# nodeSelector:
+#   workload: production
+
+## Tolerations for dedicated nodes (optional)
+# tolerations:
+# - key: workload
+#   operator: Equal
+#   value: production
+#   effect: NoSchedule
+
+## CRITICAL: Secrets MUST come from External Secrets or --set
+## DO NOT hardcode secrets in values files!
+secrets: {}
+  # Use External Secrets Operator:
+  # jwtSecret: "" # Managed by ExternalSecret
+  #
+  # Or set via helm install:
+  # helm install ... --set secrets.jwtSecret=$JWT_SECRET

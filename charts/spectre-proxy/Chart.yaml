@@ -1,0 +1,28 @@
+apiVersion: v2
+name: spectre-proxy
+description: SPECTRE Fleet API Gateway - Zero-trust event-driven proxy with RBAC, rate limiting, and observability
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - api-gateway
+  - proxy
+  - event-driven
+  - zero-trust
+  - observability
+
+home: https://github.com/your-org/spectre
+sources:
+  - https://github.com/your-org/spectre
+
+maintainers:
+  - name: SPECTRE Team
+    email: team@example.com
+
+# Dependencies (optional, for future)
+# dependencies:
+#   - name: nats
+#     version: "1.0.0"
+#     repository: https://nats-io.github.io/k8s/helm/charts/
+#     condition: nats.enabled
