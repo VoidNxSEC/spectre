@@ -170,6 +170,36 @@
               inherit pkgs;
             };
 
+            # Build spectre-proxy Rust binary
+            spectre-proxy = pkgs.rustPlatform.buildRustPackage {
+              pname = "spectre-proxy";
+              version = "0.1.0";
+              src = ./.;
+              cargoLock.lockFile = ./Cargo.lock;
+              nativeBuildInputs = with pkgs; [ pkg-config ];
+              buildInputs = with pkgs; [ openssl ];
+              cargoBuildFlags = [ "-p" "spectre-proxy" ];
+              cargoTestFlags = [ "-p" "spectre-proxy" ];
+              doCheck = false; # Integration tests require NATS
+            };
+
+            # Container image (no Docker daemon needed)
+            spectre-proxy-image = pkgs.dockerTools.buildLayeredImage {
+              name = "spectre-proxy";
+              tag = "nix-${builtins.substring 0 8 (self.rev or "dev")}";
+              contents = with pkgs; [ cacert bashInteractive coreutils ];
+              config = {
+                Cmd = [ "${spectre-proxy}/bin/spectre-proxy" ];
+                User = "1000:1000";
+                ExposedPorts = { "3000/tcp" = {}; };
+                Env = [
+                  "RUST_LOG=info"
+                  "SPECTRE_ENV=production"
+                ];
+              };
+              maxLayers = 100;
+            };
+
             # Generate Kubernetes manifests
             mkManifests = env:
               let
@@ -182,12 +212,15 @@
               };
           in
           {
+            # Core packages
+            inherit spectre-proxy spectre-proxy-image;
+
             # Kubernetes manifests
             kubernetes-manifests-dev = mkManifests "dev";
             kubernetes-manifests-prod = mkManifests "prod";
 
             # Default package
-            default = self.packages.${system}.kubernetes-manifests-dev;
+            default = spectre-proxy;
           };
 
         # Apps for deployment and operations
