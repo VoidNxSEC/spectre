@@ -45,5 +45,6 @@ securellm-bridge/
 # Empty directories removed during cleanup
 docs/
 grafana/
-nix/
 python/
+
+# Nix modules are now tracked (contain K8s orchestration code)
