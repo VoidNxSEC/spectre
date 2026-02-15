@@ -4,7 +4,7 @@ use crate::event::Event;
 use async_nats::{Client, ConnectOptions, ServerAddr};
 use spectre_core::{Result, SpectreError};
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// EventBus configuration
 #[derive(Debug, Clone)]
@@ -72,26 +72,31 @@ impl EventBus {
             return Err(SpectreError::event_bus("No valid NATS URLs provided"));
         }
 
-        // Build connection options
-        let options = ConnectOptions::new().name(&config.name);
-        // .max_reconnects(Some(config.max_reconnects as usize))
-        /*
-        .reconnect_delay_callback(move |attempts| {
-            let delay = config.reconnect_delay * attempts as u32;
-            warn!(attempts, ?delay, "NATS reconnecting");
-            delay
-        })
-        .disconnect_callback(|| {
-            warn!("NATS disconnected");
-        })
-        .reconnect_callback(|| {
-            info!("NATS reconnected");
-        });
-        */
+        // Build connection options with reconnection support
+        let reconnect_delay = config.reconnect_delay;
+        let options = ConnectOptions::new()
+            .name(&config.name)
+            .retry_on_initial_connect()
+            .reconnect_delay_callback(move |attempts| {
+                let delay = reconnect_delay * attempts as u32;
+                delay
+            })
+            .event_callback(|event| async move {
+                match event {
+                    async_nats::Event::Connected => {
+                        info!("NATS connected");
+                    }
+                    async_nats::Event::Disconnected => {
+                        warn!("NATS disconnected");
+                    }
+                    other => {
+                        warn!("NATS event: {}", other);
+                    }
+                }
+            });
 
         // Connect
-        let client = options
-            .connect(addrs)
+        let client = async_nats::connect_with_options(addrs, options)
             .await
             .map_err(|e| SpectreError::event_bus(format!("Failed to connect to NATS: {}", e)))?;
 
@@ -186,8 +191,10 @@ impl EventBus {
 
     /// Check if connected
     pub fn is_connected(&self) -> bool {
-        // !self.client.is_closed()
-        true // Placeholder
+        matches!(
+            self.client.connection_state(),
+            async_nats::connection::State::Connected
+        )
     }
 }
 
