@@ -176,12 +176,14 @@ JWT_SECRET=secret cargo run -p spectre-proxy
 
 ### Container Build
 ```bash
-# Traditional Docker
-docker build -t spectre-proxy .
-
-# Nix (no Docker daemon)
+# Nix-only (no Dockerfile, no Docker daemon needed for build)
 nix build .#spectre-proxy-image
+
+# Load to Docker daemon (optional, for local testing)
 docker load < result
+
+# Push to registry
+skopeo copy docker-archive:result docker://registry.io/spectre-proxy:latest
 ```
 
 ### Kubernetes Deployment

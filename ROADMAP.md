@@ -271,10 +271,18 @@ nix develop                    # Enter dev shell
 cargo build --release          # Build all crates
 cargo test --workspace --lib   # Run unit tests
 
+# Infrastructure (local dev)
+docker-compose up -d           # Start NATS, Jaeger, Prometheus, etc.
+docker-compose down            # Stop all services
+
 # Testing (Phase 3)
-docker-compose up -d nats      # Start NATS
-cargo test --test test_event_bus  # Integration tests
+cargo test --test test_event_bus  # Integration tests (requires NATS)
 ./scripts/load-test.sh         # Load testing
+
+# Container Images (Nix-only, no Docker build)
+nix build .#spectre-proxy-image        # Build OCI image
+docker load < result                   # Load to Docker daemon
+skopeo copy docker-archive:result docker://registry/spectre:tag  # Push
 
 # Deployment
 nix build .#kubernetes-manifests-dev   # Generate manifests
@@ -282,7 +290,7 @@ nix run .#deploy-dev                   # Deploy to K8s
 helm install spectre charts/spectre-proxy  # Or use Helm
 
 # CI/CD
-git push origin main           # Triggers 11-job pipeline
+git push origin main           # Triggers 10-job pipeline (no Docker build)
 ```
 
 ---
