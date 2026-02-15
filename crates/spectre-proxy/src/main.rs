@@ -14,6 +14,7 @@ use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use spectre_secrets::SecretManager;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
@@ -163,6 +164,75 @@ impl RateLimiter {
     }
 }
 
+// ── Circuit Breaker ─────────────────────────────────────────────────────────
+
+struct CircuitBreaker {
+    failure_count: AtomicU32,
+    success_count: AtomicU32,
+    last_failure_time: AtomicU64,
+    failure_threshold: u32,
+    recovery_timeout_ms: u64,
+}
+
+impl CircuitBreaker {
+    fn new(failure_threshold: u32, recovery_timeout: Duration) -> Self {
+        Self {
+            failure_count: AtomicU32::new(0),
+            success_count: AtomicU32::new(0),
+            last_failure_time: AtomicU64::new(0),
+            failure_threshold,
+            recovery_timeout_ms: recovery_timeout.as_millis() as u64,
+        }
+    }
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64
+    }
+
+    fn is_open(&self) -> bool {
+        let failures = self.failure_count.load(Ordering::Relaxed);
+        if failures < self.failure_threshold {
+            return false;
+        }
+        let elapsed = Self::now_ms() - self.last_failure_time.load(Ordering::Relaxed);
+        elapsed < self.recovery_timeout_ms
+    }
+
+    fn is_half_open(&self) -> bool {
+        let failures = self.failure_count.load(Ordering::Relaxed);
+        if failures < self.failure_threshold {
+            return false;
+        }
+        let elapsed = Self::now_ms() - self.last_failure_time.load(Ordering::Relaxed);
+        elapsed >= self.recovery_timeout_ms
+    }
+
+    fn allow_request(&self) -> bool {
+        !self.is_open()
+    }
+
+    fn record_success(&self) {
+        let count = self.success_count.fetch_add(1, Ordering::Relaxed) + 1;
+        if self.is_half_open() && count >= 3 {
+            self.failure_count.store(0, Ordering::Relaxed);
+            self.success_count.store(0, Ordering::Relaxed);
+            info!("Circuit breaker recovered → CLOSED");
+        }
+    }
+
+    fn record_failure(&self) {
+        let prev = self.failure_count.fetch_add(1, Ordering::Relaxed);
+        self.success_count.store(0, Ordering::Relaxed);
+        self.last_failure_time.store(Self::now_ms(), Ordering::Relaxed);
+        if prev + 1 == self.failure_threshold {
+            warn!("Circuit breaker tripped → OPEN ({}+ consecutive failures)", self.failure_threshold);
+        }
+    }
+}
+
 // ── Application State ──────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -171,6 +241,7 @@ struct AppState {
     http_client: reqwest::Client,
     neutron_url: String,
     rate_limiter: Arc<RateLimiter>,
+    circuit_breaker: Arc<CircuitBreaker>,
     nats_url: String,
 }
 
@@ -210,11 +281,22 @@ async fn main() -> Result<()> {
     let nats_url = std::env::var("NATS_URL")
         .unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
+    // Circuit breaker: 5 failures → open for 30s
+    let cb_threshold: u32 = std::env::var("CIRCUIT_BREAKER_THRESHOLD")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(5);
+    let cb_timeout: u64 = std::env::var("CIRCUIT_BREAKER_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30);
+
     let state = AppState {
         jwt_secret,
         http_client,
         neutron_url,
         rate_limiter: Arc::new(RateLimiter::new(rps, burst)),
+        circuit_breaker: Arc::new(CircuitBreaker::new(cb_threshold, Duration::from_secs(cb_timeout))),
         nats_url,
     };
 
@@ -434,6 +516,14 @@ async fn proxy_to_neutron(
     Path(path): Path<String>,
     req: Request<Body>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // Circuit breaker check
+    if !state.circuit_breaker.allow_request() {
+        warn!("Circuit breaker OPEN: rejecting request to Neutron");
+        return Err(ApiError::service_unavailable(
+            "Upstream service unavailable (circuit breaker open)",
+        ));
+    }
+
     let timer = spectre_observability::metrics::start_request_timer();
     let neutron_url = format!("{}/api/v1/{}", state.neutron_url, path);
 
@@ -446,34 +536,82 @@ async fn proxy_to_neutron(
             ApiError::bad_request(format!("Failed to read request body: {}", e))
         })?;
 
-    let res = state
-        .http_client
-        .post(&neutron_url)
-        .body(body_bytes)
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Neutron upstream error: {}", e);
-            ApiError::bad_gateway(format!("Upstream error: {}", e))
-        })?;
+    // Retry with exponential backoff (max 3 attempts)
+    let max_retries: u32 = 3;
+    let mut last_err = None;
 
-    let status =
-        StatusCode::from_u16(res.status().as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    let res_bytes = res
-        .bytes()
-        .await
-        .map_err(|e| ApiError::internal(format!("Failed to read upstream response: {}", e)))?;
+    for attempt in 0..max_retries {
+        if attempt > 0 {
+            let backoff = Duration::from_millis(100 * 2u64.pow(attempt - 1));
+            warn!(attempt, ?backoff, "Retrying request to Neutron");
+            tokio::time::sleep(backoff).await;
+
+            // Re-check circuit breaker between retries
+            if !state.circuit_breaker.allow_request() {
+                break;
+            }
+        }
+
+        match state
+            .http_client
+            .post(&neutron_url)
+            .body(body_bytes.clone())
+            .header("Content-Type", "application/json")
+            .send()
+            .await
+        {
+            Ok(res) => {
+                let status = StatusCode::from_u16(res.status().as_u16())
+                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+
+                // 5xx = upstream error, record failure and maybe retry
+                if status.is_server_error() {
+                    state.circuit_breaker.record_failure();
+                    let body = res.bytes().await.unwrap_or_default();
+                    last_err = Some(ApiError::bad_gateway(format!(
+                        "Upstream returned {}: {}",
+                        status,
+                        String::from_utf8_lossy(&body)
+                    )));
+                    continue;
+                }
+
+                // Success path
+                state.circuit_breaker.record_success();
+                let res_bytes = res.bytes().await.map_err(|e| {
+                    ApiError::internal(format!("Failed to read upstream response: {}", e))
+                })?;
+
+                timer.observe_duration();
+                spectre_observability::metrics::record_request(
+                    "POST",
+                    &format!("/api/v1/neutron/{}", path),
+                    status.as_u16(),
+                );
+
+                return Ok((status, res_bytes));
+            }
+            Err(e) => {
+                state.circuit_breaker.record_failure();
+                error!(attempt, error = %e, "Neutron upstream error");
+                last_err = Some(ApiError::bad_gateway(format!("Upstream error: {}", e)));
+                // Connection errors are retryable
+                if e.is_timeout() || e.is_connect() {
+                    continue;
+                }
+                break;
+            }
+        }
+    }
 
     timer.observe_duration();
-    spectre_observability::metrics::record_request("POST", &format!("/api/v1/neutron/{}", path), status.as_u16());
-
-    Ok((status, res_bytes))
+    Err(last_err.unwrap_or_else(|| ApiError::bad_gateway("Upstream unavailable after retries")))
 }
 
 // ── TLS Helpers ────────────────────────────────────────────────────────────
 
 /// Load TLS certificates from PEM file
+#[allow(dead_code)]
 fn load_certs(path: &str) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>> {
     let cert_file = std::fs::File::open(path)
         .map_err(|e| anyhow::anyhow!("Failed to open cert file {}: {}", path, e))?;
@@ -491,6 +629,7 @@ fn load_certs(path: &str) -> Result<Vec<rustls::pki_types::CertificateDer<'stati
 }
 
 /// Load TLS private key from PEM file
+#[allow(dead_code)]
 fn load_key(path: &str) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
     let key_file = std::fs::File::open(path)
         .map_err(|e| anyhow::anyhow!("Failed to open key file {}: {}", path, e))?;
