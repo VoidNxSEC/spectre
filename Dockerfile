@@ -1,4 +1,4 @@
-# SPECTRE Fleet - Multi-stage Dockerfile
+# SPECTRE Fleet - Multi-stage Dockerfile (optimized for <50MB)
 # Build: docker build -t spectre-proxy .
 # Run:   docker run -p 3000:3000 -e JWT_SECRET=... spectre-proxy
 
@@ -35,25 +35,16 @@ RUN touch crates/spectre-core/src/lib.rs \
     crates/spectre-secrets/src/lib.rs \
     crates/spectre-observability/src/lib.rs
 
-# Build the release binary
+# Build the release binary (profile already has strip=true, lto=true, panic=abort)
 RUN cargo build --release -p spectre-proxy
 
 # ── Runtime Stage ───────────────────────────────────────────────────────────
-FROM debian:bookworm-slim
+FROM gcr.io/distroless/cc-debian12:nonroot
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl && \
-    rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/target/release/spectre-proxy /spectre-proxy
 
-RUN useradd -r -s /bin/false spectre
-
-COPY --from=builder /build/target/release/spectre-proxy /usr/local/bin/spectre-proxy
-
-USER spectre
+USER nonroot:nonroot
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
-
-ENTRYPOINT ["/usr/local/bin/spectre-proxy"]
+ENTRYPOINT ["/spectre-proxy"]
