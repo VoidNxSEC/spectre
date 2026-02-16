@@ -80,6 +80,9 @@
           sops
           age
           ssh-to-age
+
+          # Benchmarking
+          hey
         ];
 
       in

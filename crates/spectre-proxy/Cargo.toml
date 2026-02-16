@@ -22,7 +22,7 @@ tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.5", features = ["trace", "auth", "cors"] }
 opentelemetry = { workspace = true }
 tracing-opentelemetry = { workspace = true }
-jsonwebtoken = "10.3"
+jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
 secrecy = { version = "0.8", features = ["serde"] }
 reqwest = { version = "0.11", features = ["json"] }
 dashmap = "5"

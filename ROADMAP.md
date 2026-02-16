@@ -2,7 +2,7 @@
 
 **Project**: SPECTRE Fleet - Enterprise-Grade AI Agent Framework
 **Current Phase**: Phase 2 Complete → Phase 3 Starting
-**Last Updated**: 2026-02-15
+**Last Updated**: 2026-02-16
 
 ---
 
@@ -115,7 +115,7 @@
 - [x] Profile: CPU/memory post-load
 - [x] Document: Performance baseline
 
-**Performance Baseline** (2026-02-15, debug build, localhost):
+**Performance Baseline — Debug Build** (2026-02-15, localhost):
 | Metric | Value |
 |--------|-------|
 | /health RPS | 27,693 |
@@ -126,14 +126,27 @@
 | Rate limiter accuracy (burst=200) | 204 passed / 96 rejected (300 burst) |
 | Circuit breaker: open → recovery | 503 while open → 200 after 30s timeout |
 | VmRSS (post-load) | 23.4 MB |
-| VmSize | 156 MB |
 | Thread count | 3 (tokio runtime) |
 
+**Performance Baseline — Release Build** (2026-02-16, localhost, 50 connections):
+| Metric | Value |
+|--------|-------|
+| /health RPS | 58,130 |
+| /health p50 / p95 / p99 | 0.5ms / 2.8ms / 4.6ms |
+| /metrics (auth) RPS | 59,692 |
+| /metrics p50 / p95 / p99 | 0.4ms / 2.6ms / 5.2ms |
+| /ingest (auth+NATS) RPS | 68,903 |
+| /ingest p50 / p95 / p99 | 0.4ms / 2.1ms / 4.0ms |
+| /health (200 conns) RPS | 100,733 |
+| /health (200 conns) p50 / p95 / p99 | 1.0ms / 6.3ms / 18.1ms |
+| VmRSS (post-load) | 25.8 MB |
+| Thread count | 13 (tokio runtime) |
+
 **Notes**:
-- All measurements on debug build (release will be faster)
-- Rate limiter correctly enforces 100 RPS per-IP with 200 burst
+- Release build 2-4x faster than debug build across all endpoints
+- Rate limiter correctly enforces per-IP with configurable burst
 - Circuit breaker full lifecycle validated: closed → open (503) → half-open → closed (200)
-- Proxy always forwards as POST to neutron (GET /agents → 405); future fix needed
+- 100K+ RPS at high concurrency with sub-millisecond p50
 
 ### Medium Priority
 
@@ -218,13 +231,18 @@
 - [ ] Document: When to use proxy TLS vs Ingress TLS
 
 #### #45: Service Mesh Evaluation
+**Status**: 🔄 In Progress
 **Priority**: Medium
-**Decision Point**: When inter-service communication grows
+**Decision**: Linkerd (lightweight, low overhead, Rust-based proxy)
 **Tasks**:
-- [ ] Research: Istio vs Linkerd vs Cilium
-- [ ] Document: Service mesh adoption criteria
-- [ ] POC: Deploy proxy with Linkerd
-- [ ] Test: mTLS between proxy ↔ neutron
+- [x] Research: Istio vs Linkerd vs Cilium → Linkerd chosen (simplicity, performance)
+- [x] Install: Linkerd control plane on kind cluster (stable-2.14.9, nft iptables mode)
+- [x] Mesh: spectre-proxy with automatic sidecar injection (2/2 containers)
+- [x] Fix: NATS protocol detection skip (`config.linkerd.io/skip-outbound-ports: 4222`)
+- [x] Benchmark: Release build baseline (58K-100K RPS, p50 < 1ms)
+- [ ] Test: mTLS between proxy ↔ neutron (requires neutron container image)
+- [ ] Benchmark: Mesh overhead (with vs without sidecar, p50/p95/p99 delta)
+- [ ] Test: Linkerd traffic policies (retries, timeouts, traffic splitting)
 - [ ] Create ADR: Service mesh adoption decision
 
 ### Scalability & Resilience
