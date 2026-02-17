@@ -245,23 +245,26 @@
 - [x] Test: Linkerd traffic policies (retries, timeouts via `nix build .#service-profile`)
 - [x] Create ADR: Service mesh adoption decision (ADR-0039)
 
-**mTLS Validation**:
-```bash
-# Deploy stub neutron
-nix build .#neutron-stub-manifests && kubectl apply -f result
+**mTLS Validation** (2026-02-17, kind cluster `spectre-dev`):
+```
+$ linkerd viz edges deployment --namespace default
+SRC             DST             SRC_NS        DST_NS    SECURED
+spectre-proxy   neutron         default       default   √
+prometheus      neutron         linkerd-viz   default   √
+prometheus      spectre-proxy   linkerd-viz   default   √
+```
+All east-west traffic between spectre-proxy ↔ neutron is **mutually authenticated and encrypted** (SECURED = ✓).
+10/10 curl probes through the mesh returned 200 OK.
 
-# Validate mTLS edges
-linkerd viz edges deployment        # TLS column = true for spectre-proxy ↔ neutron
-
-# Tap live traffic
-linkerd viz tap deployment/spectre-proxy --to deployment/neutron
-
-# Validate service profile routes
-nix build .#service-profile && kubectl apply -f result
-linkerd viz routes deployment/spectre-proxy
+**Linkerd viz golden metrics** (live):
+```
+$ linkerd viz stat deployment --namespace default
+NAME            MESHED   SUCCESS      RPS   LATENCY_P50   LATENCY_P95   LATENCY_P99   TCP_CONN
+neutron            1/1   100.00%   0.8rps           1ms           4ms           4ms          4
+spectre-proxy      1/1   100.00%   0.6rps           1ms        1850ms        1970ms          3
 ```
 
-**Mesh Overhead Benchmark** (with vs without Linkerd sidecar, /health endpoint, 50 connections):
+**Mesh Overhead Benchmark** (expected, based on Linkerd benchmarks):
 | Metric | Without Mesh | With Mesh | Delta |
 |--------|-------------|-----------|-------|
 | RPS | ~58,000 | ~55,000 | -5% |
@@ -269,8 +272,14 @@ linkerd viz routes deployment/spectre-proxy
 | p95 latency | 2.8ms | 3.5ms | +0.7ms |
 | p99 latency | 4.6ms | 6.0ms | +1.4ms |
 
-*Expected overhead based on Linkerd benchmarks (Rust proxy, ~0.5ms p50 / <2ms p99 on commodity hardware).
-Methodology: `wrk2 -t4 -c50 -d30s -R50000 http://localhost/health` with and without sidecar injection.*
+*Rust proxy overhead ~0.5ms p50 / <2ms p99 on commodity hardware.
+Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
+
+**Operational Notes**:
+- Linkerd requires `--set proxyInit.iptablesMode=nft` on kind (kernel 6.x uses nftables)
+- Linkerd viz pods need `config.linkerd.io/skip-outbound-ports: 443` to reach kube-apiserver
+- Trust anchor certs expire after 24h on dev install — `linkerd upgrade` or reinstall to rotate
+- go-httpbin listens on port 8080 by default; Service maps 8000 → 8080
 
 **ServiceProfile**: `nix build .#service-profile` generates CRD with POST /ingest (10s timeout, 20% retry budget) and GET /health routes.
 
