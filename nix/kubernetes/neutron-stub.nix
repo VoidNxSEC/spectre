@@ -51,7 +51,7 @@ in
               image = "ghcr.io/mccutchen/go-httpbin:v2.14.0";
 
               ports = [
-                { name = "http"; containerPort = 8000; protocol = "TCP"; }
+                { name = "http"; containerPort = 8080; protocol = "TCP"; }
               ];
 
               livenessProbe = mkHttpProbe {
@@ -97,7 +97,7 @@ in
       selector = labels;
 
       ports = [
-        { name = "http"; port = 8000; targetPort = "http"; protocol = "TCP"; }
+        { name = "http"; port = 8000; targetPort = 8080; protocol = "TCP"; }
       ];
     };
   }

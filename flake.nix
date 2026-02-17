@@ -132,6 +132,9 @@
               k9s
               kustomize
 
+              # Service mesh
+              linkerd
+
               # Container tools
               skopeo
               dive
