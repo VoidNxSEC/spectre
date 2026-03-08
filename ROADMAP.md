@@ -1,8 +1,8 @@
 # SPECTRE Roadmap
 
 **Project**: SPECTRE Fleet - Enterprise-Grade AI Agent Framework
-**Current Phase**: Phase 2 Complete → Phase 3 Starting
-**Last Updated**: 2026-02-17
+**Current Phase**: Phase 4 In Progress (#47 Chaos Engineering)
+**Last Updated**: 2026-03-08
 
 ---
 
@@ -61,7 +61,7 @@
 
 ---
 
-## 🔄 Phase 3: Validation & Testing (In Progress)
+## ✅ Phase 3: Validation & Testing (Complete)
 
 **Timeline**: Q1 2026 (Feb-Mar)
 **Focus**: Integration testing, deployment validation, load testing
@@ -179,7 +179,7 @@
 
 ---
 
-## 🚀 Phase 4: Enterprise Features (Planned)
+## 🔄 Phase 4: Enterprise Features (In Progress)
 
 **Timeline**: Q2 2026 (Apr-Jun)
 **Focus**: Security hardening, multi-region, advanced reliability
@@ -297,16 +297,22 @@ Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
 - [ ] POC: 2-region deployment
 
 #### #47: Chaos Engineering
+**Status**: ✅ Done
 **Priority**: High
 **Timeline**: Q2 2026
 **Tasks**:
-- [ ] Test: Pod random termination
-- [ ] Test: Network latency injection (toxiproxy)
-- [ ] Test: NATS broker restart under load
-- [ ] Test: Database connection loss
-- [ ] Test: Upstream timeout simulation
-- [ ] Validate: Circuit breaker, retry, graceful degradation
-- [ ] Document: Resilience test suite
+- [x] Test: Process termination + restart (Phase 4: Graceful Shutdown + MTTR)
+- [x] Test: Network latency injection (toxiproxy — Phase 3)
+- [x] Test: NATS broker restart under load (Phase 1)
+- [x] Test: Database connection loss (TimescaleDB — Phase 5)
+- [x] Test: Upstream timeout simulation (toxiproxy timeout toxic — Phase 3b)
+- [x] Validate: Circuit breaker lifecycle (closed → open → half-open → closed — Phase 2)
+- [x] Validate: Retry logic (proxy_to_neutron 3-attempt exponential backoff)
+- [x] Validate: Graceful degradation contract (/health always 200 — Phase 6)
+- [x] Document: `CHAOS_ENGINEERING.md` + `scripts/chaos-test.sh`
+
+**Script**: `./scripts/chaos-test.sh` (6 phases, ~400 LOC bash)
+**Infra**: toxiproxy added to `nix develop` (commonBuildInputs in flake.nix)
 
 ---
 
@@ -340,9 +346,9 @@ Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
 - **Phase 5**: Advanced features 💭 (Future)
 
 ### Task Breakdown
-- ✅ **Completed**: 22 tasks
-- 🔄 **In Progress**: 0 tasks (ready to start Phase 3)
-- 📅 **Planned**: 10 tasks (Phase 3 + 4)
+- ✅ **Completed**: 31 tasks (Phase 1–3 + #43 Security Audit + #45 Linkerd + #47 Chaos)
+- 🔄 **In Progress**: Phase 4 (#46 Multi-Region)
+- 📅 **Planned**: 1 task (#46 Multi-Region Strategy)
 - 💭 **Future**: 7+ features (Phase 5)
 
 ---

@@ -83,6 +83,9 @@
 
           # Benchmarking
           hey
+
+          # Chaos engineering (Phase 3 — network fault injection)
+          toxiproxy
         ];
 
       in
@@ -110,6 +113,10 @@
               echo "  1. docker-compose up -d"
               echo "  2. cargo build"
               echo "  3. cargo test"
+              echo ""
+              echo "Chaos engineering (Task #47):"
+              echo "  cargo build --release && ./scripts/chaos-test.sh"
+              echo "  ./scripts/chaos-test.sh --phase 2  (single phase)"
               echo ""
 
               # Set environment variables for development
