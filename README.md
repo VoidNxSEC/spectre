@@ -1,6 +1,6 @@
 # SPECTRE Fleet
 
-**Enterprise-Grade AI Agent Framework with Event-Driven Architecture**
+**AI Agent Framework with Event-Driven Architecture**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
@@ -11,6 +11,7 @@
 ## 🎯 Vision
 
 SPECTRE is a **Domain-Driven Microservices** framework with:
+
 - 🎯 **Event-Driven Architecture** - All services communicate via NATS message bus
 - 🔒 **Zero-Trust Governance** - Mandatory authentication via Spectre Proxy
 - 🏆 **Observability Intelligence** - ML-based anomaly detection, FinOps tracking
@@ -28,6 +29,7 @@ SPECTRE is a **Domain-Driven Microservices** framework with:
 **SPECTRE** is the **core infrastructure framework** that orchestrates independent domain services via event-driven communication.
 
 **Repository Organization**:
+
 - **This repository** (`/home/kernelcore/dev/low-level/spectre`): Core infrastructure only
 - **Domain services**: Separate repositories in `~/dev/low-level/` (open source contributions)
 - **Integration**: All services connect via NATS event bus
@@ -157,6 +159,7 @@ cargo check -p spectre-events
 Domain services (e.g., `securellm-bridge`, `ml-offload-api`) integrate by:
 
 1. **Adding SPECTRE dependencies** to their `Cargo.toml`:
+
    ```toml
    [dependencies]
    spectre-core = { git = "https://github.com/kernelcore/spectre", branch = "main" }
@@ -164,6 +167,7 @@ Domain services (e.g., `securellm-bridge`, `ml-offload-api`) integrate by:
    ```
 
 2. **Connecting to NATS** and publishing/subscribing to events:
+
    ```rust
    use spectre_events::EventBus;
 
@@ -214,31 +218,39 @@ All events follow the pattern: `<category>.<action>.v<version>`
 ### Implemented Event Types
 
 **LLM Gateway**:
+
 - `llm.request.v1` / `llm.response.v1`
 
 **ML Inference**:
+
 - `inference.request.v1` / `inference.response.v1`
 - `vram.status.v1`
 
 **Analysis**:
+
 - `analysis.request.v1` / `analysis.response.v1`
 - `analysis.report.v1`
 
 **RAG**:
+
 - `rag.index.v1` / `rag.query.v1`
 - `document.indexed.v1`
 
 **System**:
+
 - `system.metrics.v1` / `system.log.v1`
 - `hyprland.window.v1` / `hyprland.workspace.v1`
 
 **FinOps**:
+
 - `cost.incurred.v1`
 
 **Orchestration**:
+
 - `task.assigned.v1` / `task.result.v1`
 
 **Governance**:
+
 - `governance.proposal.v1` / `governance.vote.v1`
 - `quality.report.v1`
 
@@ -310,23 +322,28 @@ async fn main() -> spectre_core::Result<()> {
 ## 📈 Roadmap
 
 ### Phase 1: Security Infrastructure (Weeks 3-4)
+
 - spectre-proxy (Zero-Trust gateway)
 - spectre-secrets (Secret rotation engine)
 
 ### Phase 2: Observability (Weeks 5-6)
+
 - spectre-observability (Intelligence engine)
 - Tauri dashboard (Real-time monitoring)
 
 ### Phase 3: Service Adaptation (Weeks 7-10)
+
 - Migrate existing services to event-driven architecture
 - Add NATS integration layers
 
 ### Phase 4: Integration & Testing (Weeks 11-12)
+
 - End-to-end tests
 - Performance benchmarks
 - Failover testing
 
 ### Phase 5: Production Hardening (Weeks 13-14)
+
 - NixOS module
 - Prometheus exporters
 - Security audit

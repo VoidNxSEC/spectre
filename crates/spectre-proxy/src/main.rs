@@ -12,6 +12,8 @@ use dashmap::DashMap;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
+use spectre_core::ServiceId;
+use spectre_events::{Event, EventBus, EventType};
 use spectre_secrets::SecretManager;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -288,7 +290,7 @@ struct AppState {
     neutron_url: String,
     rate_limiter: Arc<RateLimiter>,
     circuit_breaker: Arc<CircuitBreaker>,
-    nats_url: String,
+    event_bus: Arc<EventBus>,
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -337,13 +339,19 @@ async fn main() -> Result<()> {
         .and_then(|v| v.parse().ok())
         .unwrap_or(30);
 
+    info!("Connecting to NATS at {}...", nats_url);
+    let event_bus = spectre_events::EventBus::connect(&nats_url).await.unwrap_or_else(|e| {
+        error!("CRITICAL: Failed to initialize NATS EventBus: {}", e);
+        std::process::exit(1);
+    });
+
     let state = AppState {
         jwt_secret,
         http_client,
         neutron_url,
         rate_limiter: Arc::new(RateLimiter::new(rps, burst)),
         circuit_breaker: Arc::new(CircuitBreaker::new(cb_threshold, Duration::from_secs(cb_timeout))),
-        nats_url,
+        event_bus: Arc::new(event_bus),
     };
 
     // 5. Build router
@@ -515,10 +523,7 @@ async fn health_check() -> &'static str {
 
 async fn readiness_check(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
     // Check NATS connectivity
-    let nats_ok = match spectre_events::EventBus::connect(&state.nats_url).await {
-        Ok(bus) => bus.is_connected(),
-        Err(_) => false,
-    };
+    let nats_ok = state.event_bus.is_connected();
 
     // Check upstream
     let upstream_ok = state
@@ -552,9 +557,34 @@ async fn metrics_endpoint() -> impl IntoResponse {
 
 // ── Handlers: Protected ────────────────────────────────────────────────────
 
-async fn ingest_event() -> Json<serde_json::Value> {
-    spectre_observability::metrics::record_event_published();
-    Json(serde_json::json!({"status": "ingested"}))
+async fn ingest_event(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let event_type = match payload.get("type").and_then(|v| v.as_str()) {
+        Some(t) => EventType::Custom(t.to_string()),
+        None => EventType::Custom("ingest.generic.v1".to_string()),
+    };
+
+    let event = Event::new(
+        event_type,
+        ServiceId::new("spectre-proxy"),
+        payload,
+    );
+
+    match state.event_bus.publish(&event).await {
+        Ok(_) => {
+            spectre_observability::metrics::record_event_published();
+            Ok(Json(serde_json::json!({
+                "status": "ingested",
+                "event_id": event.event_id
+            })))
+        }
+        Err(e) => {
+            error!("Failed to publish event: {}", e);
+            Err(ApiError::service_unavailable("Event bus unavailable"))
+        }
+    }
 }
 
 async fn proxy_to_neutron(

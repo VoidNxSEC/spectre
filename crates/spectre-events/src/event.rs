@@ -77,6 +77,28 @@ pub enum EventType {
     #[serde(rename = "agent.command.v1")]
     AgentCommand,
 
+    // Network events (owasaka sensor layer)
+    #[serde(rename = "network.dns.query.v1")]
+    NetworkDnsQuery,
+    #[serde(rename = "network.dns.threat.v1")]
+    NetworkDnsThreat,
+    #[serde(rename = "network.asset.discovered.v1")]
+    NetworkAssetDiscovered,
+    #[serde(rename = "network.service.detected.v1")]
+    NetworkServiceDetected,
+    #[serde(rename = "network.topology.updated.v1")]
+    NetworkTopologyUpdated,
+
+    // Phantom-stack domain events
+    #[serde(rename = "ingest.file.created.v1")]
+    IngestFileCreated,
+    #[serde(rename = "ingest.file.sanitized.v1")]
+    IngestFileSanitized,
+    #[serde(rename = "cognition.query.received.v1")]
+    CognitionQueryReceived,
+    #[serde(rename = "cognition.insight.generated.v1")]
+    CognitionInsightGenerated,
+
     // Generic/Custom event
     #[serde(rename = "custom")]
     Custom(String),
@@ -310,5 +332,37 @@ mod tests {
             EventType::LlmRequest.response_type(),
             Some(EventType::LlmResponse)
         );
+    }
+
+    #[test]
+    fn test_network_event_subjects() {
+        assert_eq!(EventType::NetworkDnsQuery.subject(), "network.dns.query.v1");
+        assert_eq!(EventType::NetworkDnsThreat.subject(), "network.dns.threat.v1");
+        assert_eq!(EventType::NetworkAssetDiscovered.subject(), "network.asset.discovered.v1");
+        assert_eq!(EventType::NetworkServiceDetected.subject(), "network.service.detected.v1");
+        assert_eq!(EventType::NetworkTopologyUpdated.subject(), "network.topology.updated.v1");
+    }
+
+    #[test]
+    fn test_phantom_stack_event_subjects() {
+        assert_eq!(EventType::IngestFileCreated.subject(), "ingest.file.created.v1");
+        assert_eq!(EventType::IngestFileSanitized.subject(), "ingest.file.sanitized.v1");
+        assert_eq!(EventType::CognitionQueryReceived.subject(), "cognition.query.received.v1");
+        assert_eq!(EventType::CognitionInsightGenerated.subject(), "cognition.insight.generated.v1");
+    }
+
+    #[test]
+    fn test_network_event_serialization() {
+        let event = Event::new(
+            EventType::NetworkAssetDiscovered,
+            ServiceId::new("owasaka"),
+            serde_json::json!({"ip": "192.168.1.10", "mac": "aa:bb:cc:dd:ee:ff"}),
+        );
+
+        let json = event.to_json().unwrap();
+        let deserialized = Event::from_json(&json).unwrap();
+
+        assert_eq!(deserialized.event_type, EventType::NetworkAssetDiscovered);
+        assert_eq!(deserialized.subject(), "network.asset.discovered.v1");
     }
 }
