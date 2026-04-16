@@ -69,7 +69,6 @@ impl<B> tower_http::trace::MakeSpan<B> for OtelMakeSpan {
     }
 }
 
-
 // ── Types ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -155,7 +154,11 @@ impl ApiError {
     }
 
     fn service_unavailable(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::SERVICE_UNAVAILABLE, "Service Unavailable", message)
+        Self::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Service Unavailable",
+            message,
+        )
     }
 }
 
@@ -274,9 +277,13 @@ impl CircuitBreaker {
     fn record_failure(&self) {
         let prev = self.failure_count.fetch_add(1, Ordering::Relaxed);
         self.success_count.store(0, Ordering::Relaxed);
-        self.last_failure_time.store(Self::now_ms(), Ordering::Relaxed);
+        self.last_failure_time
+            .store(Self::now_ms(), Ordering::Relaxed);
         if prev + 1 == self.failure_threshold {
-            warn!("Circuit breaker tripped → OPEN ({}+ consecutive failures)", self.failure_threshold);
+            warn!(
+                "Circuit breaker tripped → OPEN ({}+ consecutive failures)",
+                self.failure_threshold
+            );
         }
     }
 }
@@ -324,10 +331,10 @@ async fn main() -> Result<()> {
         .and_then(|v| v.parse().ok())
         .unwrap_or(200);
 
-    let neutron_url = std::env::var("NEUTRON_URL")
-        .unwrap_or_else(|_| "http://localhost:8000".to_string());
-    let nats_url = std::env::var("NATS_URL")
-        .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+    let neutron_url =
+        std::env::var("NEUTRON_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
+    let nats_url =
+        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
     // Circuit breaker: 5 failures → open for 30s
     let cb_threshold: u32 = std::env::var("CIRCUIT_BREAKER_THRESHOLD")
@@ -340,17 +347,22 @@ async fn main() -> Result<()> {
         .unwrap_or(30);
 
     info!("Connecting to NATS at {}...", nats_url);
-    let event_bus = spectre_events::EventBus::connect(&nats_url).await.unwrap_or_else(|e| {
-        error!("CRITICAL: Failed to initialize NATS EventBus: {}", e);
-        std::process::exit(1);
-    });
+    let event_bus = spectre_events::EventBus::connect(&nats_url)
+        .await
+        .unwrap_or_else(|e| {
+            error!("CRITICAL: Failed to initialize NATS EventBus: {}", e);
+            std::process::exit(1);
+        });
 
     let state = AppState {
         jwt_secret,
         http_client,
         neutron_url,
         rate_limiter: Arc::new(RateLimiter::new(rps, burst)),
-        circuit_breaker: Arc::new(CircuitBreaker::new(cb_threshold, Duration::from_secs(cb_timeout))),
+        circuit_breaker: Arc::new(CircuitBreaker::new(
+            cb_threshold,
+            Duration::from_secs(cb_timeout),
+        )),
         event_bus: Arc::new(event_bus),
     };
 
@@ -394,7 +406,10 @@ async fn main() -> Result<()> {
         // Current implementation has type compatibility issues between tower and hyper services
         warn!("TLS is enabled but not yet implemented. Falling back to HTTP.");
 
-        info!("Spectre Proxy listening on {} (TLS disabled - not implemented)", addr);
+        info!(
+            "Spectre Proxy listening on {} (TLS disabled - not implemented)",
+            addr
+        );
 
         let listener = TcpListener::bind(addr).await?;
         axum::serve(
@@ -441,7 +456,9 @@ async fn auth_middleware(
         .ok_or_else(|| ApiError::unauthorized("Missing Authorization header"))?;
 
     if !auth_header.starts_with("Bearer ") {
-        return Err(ApiError::unauthorized("Invalid Authorization header format"));
+        return Err(ApiError::unauthorized(
+            "Invalid Authorization header format",
+        ));
     }
     let token = &auth_header[7..];
 
@@ -505,10 +522,9 @@ async fn rate_limit_middleware(
     if !state.rate_limiter.check(&key) {
         let retry_after = 1;
         let mut response = ApiError::too_many_requests(retry_after).into_response();
-        response.headers_mut().insert(
-            "Retry-After",
-            retry_after.to_string().parse().unwrap(),
-        );
+        response
+            .headers_mut()
+            .insert("Retry-After", retry_after.to_string().parse().unwrap());
         return Ok(response);
     }
 
@@ -521,7 +537,9 @@ async fn health_check() -> &'static str {
     "OK"
 }
 
-async fn readiness_check(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+async fn readiness_check(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
     // Check NATS connectivity
     let nats_ok = state.event_bus.is_connected();
 
@@ -566,11 +584,7 @@ async fn ingest_event(
         None => EventType::Custom("ingest.generic.v1".to_string()),
     };
 
-    let event = Event::new(
-        event_type,
-        ServiceId::new("spectre-proxy"),
-        payload,
-    );
+    let event = Event::new(event_type, ServiceId::new("spectre-proxy"), payload);
 
     match state.event_bus.publish(&event).await {
         Ok(_) => {
@@ -714,7 +728,8 @@ fn load_key(path: &str) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
     // Try reading as PKCS8 first, then RSA, then EC
     loop {
         match rustls_pemfile::read_one(&mut reader)
-            .map_err(|e| anyhow::anyhow!("Failed to read key: {}", e))? {
+            .map_err(|e| anyhow::anyhow!("Failed to read key: {}", e))?
+        {
             Some(rustls_pemfile::Item::Pkcs8Key(key)) => return Ok(key.into()),
             Some(rustls_pemfile::Item::Pkcs1Key(key)) => return Ok(key.into()),
             Some(rustls_pemfile::Item::Sec1Key(key)) => return Ok(key.into()),

@@ -109,7 +109,9 @@ impl EventBus {
                     Ok(contents) => {
                         if let Some(seed) = contents
                             .lines()
-                            .find(|line| !line.trim_start().starts_with('#') && !line.trim().is_empty())
+                            .find(|line| {
+                                !line.trim_start().starts_with('#') && !line.trim().is_empty()
+                            })
                             .map(|line| line.trim().to_string())
                         {
                             options = options.nkey(seed);

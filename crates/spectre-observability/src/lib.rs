@@ -106,7 +106,10 @@ pub fn init(service_name: &str) -> Result<()> {
                 registry.with(fmt_layer).with(otel_layer).init();
             }
             Some(Err(e)) => {
-                eprintln!("Warning: OTLP tracer init failed: {}. Continuing without tracing.", e);
+                eprintln!(
+                    "Warning: OTLP tracer init failed: {}. Continuing without tracing.",
+                    e
+                );
                 registry.with(fmt_layer).init();
             }
             None => {
@@ -125,7 +128,10 @@ pub fn init(service_name: &str) -> Result<()> {
                 registry.with(fmt_layer).with(otel_layer).init();
             }
             Some(Err(e)) => {
-                eprintln!("Warning: OTLP tracer init failed: {}. Continuing without tracing.", e);
+                eprintln!(
+                    "Warning: OTLP tracer init failed: {}. Continuing without tracing.",
+                    e
+                );
                 registry.with(fmt_layer).init();
             }
             None => {

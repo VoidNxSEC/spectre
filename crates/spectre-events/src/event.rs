@@ -337,18 +337,42 @@ mod tests {
     #[test]
     fn test_network_event_subjects() {
         assert_eq!(EventType::NetworkDnsQuery.subject(), "network.dns.query.v1");
-        assert_eq!(EventType::NetworkDnsThreat.subject(), "network.dns.threat.v1");
-        assert_eq!(EventType::NetworkAssetDiscovered.subject(), "network.asset.discovered.v1");
-        assert_eq!(EventType::NetworkServiceDetected.subject(), "network.service.detected.v1");
-        assert_eq!(EventType::NetworkTopologyUpdated.subject(), "network.topology.updated.v1");
+        assert_eq!(
+            EventType::NetworkDnsThreat.subject(),
+            "network.dns.threat.v1"
+        );
+        assert_eq!(
+            EventType::NetworkAssetDiscovered.subject(),
+            "network.asset.discovered.v1"
+        );
+        assert_eq!(
+            EventType::NetworkServiceDetected.subject(),
+            "network.service.detected.v1"
+        );
+        assert_eq!(
+            EventType::NetworkTopologyUpdated.subject(),
+            "network.topology.updated.v1"
+        );
     }
 
     #[test]
     fn test_phantom_stack_event_subjects() {
-        assert_eq!(EventType::IngestFileCreated.subject(), "ingest.file.created.v1");
-        assert_eq!(EventType::IngestFileSanitized.subject(), "ingest.file.sanitized.v1");
-        assert_eq!(EventType::CognitionQueryReceived.subject(), "cognition.query.received.v1");
-        assert_eq!(EventType::CognitionInsightGenerated.subject(), "cognition.insight.generated.v1");
+        assert_eq!(
+            EventType::IngestFileCreated.subject(),
+            "ingest.file.created.v1"
+        );
+        assert_eq!(
+            EventType::IngestFileSanitized.subject(),
+            "ingest.file.sanitized.v1"
+        );
+        assert_eq!(
+            EventType::CognitionQueryReceived.subject(),
+            "cognition.query.received.v1"
+        );
+        assert_eq!(
+            EventType::CognitionInsightGenerated.subject(),
+            "cognition.insight.generated.v1"
+        );
     }
 
     #[test]

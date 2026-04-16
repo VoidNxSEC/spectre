@@ -34,7 +34,10 @@ impl SecretManager {
 
         // 2. Fallback to Env Var (Development)
         if let Ok(val) = env::var(key) {
-            warn!("Loaded secret '{}' from ENV VAR. Use file-based secrets in production.", key);
+            warn!(
+                "Loaded secret '{}' from ENV VAR. Use file-based secrets in production.",
+                key
+            );
             return Ok(Secret::new(val));
         }
 
