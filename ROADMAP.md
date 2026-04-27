@@ -316,10 +316,122 @@ Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
 
 ---
 
-## 🔮 Phase 5: Advanced Features (Future)
+## 🧠 Phase 5: AI Event Driven (Strategic Pivot)
 
-**Timeline**: Q3 2026+
-**Status**: Planning
+**Timeline**: Q3 2026
+**Status**: Goal definition — brainstorm 2026-04-27
+
+> **The idea**: Spectre stops being a passive event router and becomes the **reactive AI backbone** of the stack.
+> It doesn't replace ml-ops-api or neoland — it observes both and acts on what it sees.
+> Events in → reasoning → events out. 80%+ observability reuse with real triggers and actions,
+> under a multi-layered confined environment. A system that evolves itself.
+
+### Strategic Framing
+
+| Before | After |
+|--------|-------|
+| Spectre routes events passively | Spectre consumes AI events and reacts |
+| ml-ops-api publishes → nobody consumes | Spectre consumes → auto-scales inference pods |
+| Neoland ADRs live in flat files | Spectre indexes ADRs in TimescaleDB → trend analysis |
+| Circuit breaker is local to ml-ops-api | Spectre detects failure patterns → triggers model rollback |
+| MLflow only receives manual pushes | Spectre feeds runs via inference completion events |
+
+### AI Event Flow
+
+```
+[ml-ops-api]  ──► ml_offload.inference.completed  ──►  Spectre AI Consumer
+[neoland]     ──► neoland.pipeline.output.v1      ──►  Spectre AI Reactor
+[sentinel]    ──► sentinel.alert.v1               ──►       │
+                                                             ▼
+                                                    reasoning layer
+                                                    (rules first, model later)
+                                                             │
+                               ┌─────────────────────────────┼──────────────────────────┐
+                               ▼                             ▼                           ▼
+                     spectre.ai.scale.v1         spectre.ai.alert.v1        spectre.ai.rollback.v1
+                     (KEDA trigger)              (Grafana/PagerDuty)        (ml-ops-api model swap)
+```
+
+### Goals
+
+#### #50: Unified AI Event Namespace
+**Priority**: High
+**Goal**: Define the canonical subject hierarchy for all AI events across stacks.
+**Tasks**:
+- [ ] Define producer subjects: `ml_offload.inference.*`, `neoland.pipeline.*`, `sentinel.alert.*`
+- [ ] Define Spectre output subjects: `spectre.ai.action.v1`, `spectre.ai.scale.v1`, `spectre.ai.rollback.v1`, `spectre.ai.alert.v1`
+- [ ] Document schema per subject (JSON envelope: `source`, `ts`, `payload`, `correlation_id`)
+- [ ] Add JetStream stream `SPECTRE_AI_EVENTS` (7d retention, at-least-once delivery)
+- [ ] ADR: AI event contract between stacks
+
+#### #51: AI Event Consumers (Rust crate `spectre-ai-reactor`)
+**Priority**: High
+**Goal**: Durable JetStream consumers that process AI events and emit reactive actions.
+**Tasks**:
+- [ ] Consumer: `ml_offload.inference.completed` → feed MLflow run via HTTP
+- [ ] Consumer: `ml_offload.inference.failed` → increment failure counter, check threshold → emit rollback
+- [ ] Consumer: `neoland.pipeline.output.v1` → persist ADR to TimescaleDB (session, decision, risk_level)
+- [ ] Consumer: `sentinel.alert.v1` → emit `spectre.ai.alert.v1` with enriched context
+- [ ] Pull consumer with explicit ack, max_deliver=5 (mirrors neoland's ledger-subscriber pattern)
+
+#### #52: Reasoning Layer (Deterministic First)
+**Priority**: High
+**Goal**: Rules-based reactor that decides what action to emit based on event context.
+**Tasks**:
+- [ ] Rule: `inference_failed_total > threshold` AND `circuit_breaker_open = true` → emit rollback to last stable model
+- [ ] Rule: `queue_depth > N` for T seconds → emit scale-up to KEDA
+- [ ] Rule: `neoland.risk_level = critical` → emit alert + pause pipeline flag via mmap IPC
+- [ ] Rule: `consecutive_failures = 0` after rollback → emit `spectre.ai.scale.v1` scale-down
+- [ ] Config: thresholds via NixOS module options (no hardcoded values)
+- [ ] Extension point: plug in lightweight LLM for contextual decisions (Phase 6)
+
+#### #53: KEDA ScaledObject for llama-server
+**Priority**: Medium
+**Goal**: Auto-scale inference capacity based on NATS queue depth events from ml-ops-api.
+**Tasks**:
+- [ ] Define KEDA `ScaledObject` for llama-server Deployment
+- [ ] Trigger: NATS subject `ml_offload.queue.depth` metric (custom NATS scaler)
+- [ ] Cooldown: 60s scale-down delay (avoid flapping)
+- [ ] Min/max replicas configurable via NixOS Helm values
+- [ ] Test: load spike → scale-up in <30s → scale-down after cooldown
+
+#### #54: ADR Intelligence (TimescaleDB)
+**Priority**: Medium
+**Goal**: Index all Neoland ADRs in TimescaleDB for trend analysis and decision history.
+**Tasks**:
+- [ ] TimescaleDB table: `ai_decisions(ts, session_id, source, risk_level, status, decision TEXT)`
+- [ ] Consumer writes ADR checkpoint events → TimescaleDB
+- [ ] Grafana dashboard: risk_level distribution over time, escalation rate, session frequency
+- [ ] Query: "last N decisions with risk_level=critical" → feed as context to reasoning layer
+- [ ] ADR: How historical context improves reactor decisions
+
+#### #55: NixOS Module (`spectre-ai-reactor.nix`)
+**Priority**: Medium
+**Goal**: Declarative module for the AI reactor service — no hardcoded values, sops secrets.
+**Tasks**:
+- [ ] `services.spectre-ai-reactor.enable`
+- [ ] Options: `natsUrl`, `mlflowUrl`, `thresholds.*`, `timescaledbUrl`
+- [ ] Secrets: `apiKeysSecretFile` (sops-nix EnvironmentFile pattern)
+- [ ] systemd hardening: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`
+- [ ] `nix flake check` validation
+
+#### #56: NixOS-First Strategy (Long Term)
+**Priority**: Low — philosophical / strategic
+**Goal**: Evaluate migrating the full Spectre stack from Docker Compose to NixOS modules for the parts that live permanently on bare metal.
+**Rationale**: NixOS modules give systemd hardening, sops-nix secrets, reproducible state, and declarative network topology — everything Docker Compose approximates. The AI reactor, NATS, and TimescaleDB are strong candidates since they're always-on bare-metal services.
+**Decision boundary**: If Spectre reaches Kubernetes production → keep container runtime. If it stays single-host event bus → migrate to NixOS modules and drop Docker dependency.
+**Tasks**:
+- [ ] Audit which services are truly always-on vs ephemeral
+- [ ] POC: NATS as NixOS module (already partially done — `nix/services/nats/`)
+- [ ] POC: TimescaleDB as NixOS module
+- [ ] Document: bare-metal vs k8s boundary decision (ADR)
+
+---
+
+## 🔮 Phase 6: Contextual AI Reactor (Future)
+
+**Timeline**: Q4 2026+
+**Status**: Vision
 
 ### Potential Features
 - **Auto-scaling based on custom metrics** (HPA with Prometheus adapter)
@@ -328,7 +440,8 @@ Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
 - **Multi-tenancy** (Namespace isolation, resource quotas)
 - **Cost optimization** (Spot instances, vertical pod autoscaling)
 - **Advanced observability** (Distributed profiling, eBPF tracing)
-- **ML-based anomaly detection** (Prometheus + custom models)
+- **LLM-assisted reactor decisions** — lightweight model reads ADR history from TimescaleDB, enriches reasoning layer with historical context before emitting actions
+- **Self-healing inference cluster** — Spectre detects degraded models, triggers retraining pipeline via Neoland, promotes new model after Tech-Leader ADR approval
 
 ---
 
@@ -337,19 +450,21 @@ Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
 ### Completed
 - **Phase 1**: Core infrastructure ✅
 - **Phase 2**: Production readiness ✅ (22 tasks)
+- **Phase 3**: Validation & testing ✅ (7 tasks)
+- **Phase 4**: Enterprise features ✅ (#43 Security + #45 Linkerd + #47 Chaos)
 
 ### In Progress
-- **Phase 3**: Validation & testing ✅ (7 tasks, 7 done)
+- **Phase 4**: #46 Multi-Region Strategy 🔄
 
 ### Planned
-- **Phase 4**: Enterprise features 📅 (5 tasks)
-- **Phase 5**: Advanced features 💭 (Future)
+- **Phase 5**: AI Event Driven 📅 (7 goals — #50–#56, defined 2026-04-27)
+- **Phase 6**: Contextual AI Reactor 💭 (Future)
 
 ### Task Breakdown
-- ✅ **Completed**: 31 tasks (Phase 1–3 + #43 Security Audit + #45 Linkerd + #47 Chaos)
-- 🔄 **In Progress**: Phase 4 (#46 Multi-Region)
-- 📅 **Planned**: 1 task (#46 Multi-Region Strategy)
-- 💭 **Future**: 7+ features (Phase 5)
+- ✅ **Completed**: 31 tasks (Phase 1–4)
+- 🔄 **In Progress**: #46 Multi-Region
+- 📅 **Planned**: 7 goals (Phase 5 AI Event Driven)
+- 💭 **Future**: Phase 6 features
 
 ---
 
@@ -440,4 +555,12 @@ git push origin main           # Triggers 10-job pipeline (no Docker build)
 
 **Note**: This roadmap is living document. Tasks may be reprioritized based on production feedback and business needs.
 
-Last reviewed: 2026-02-17
+Last reviewed: 2026-04-27
+
+## 🗓 Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-04-27 | Phase 5 AI Event Driven defined (brainstorm session — strategic pivot from passive to reactive AI backbone) |
+| 2026-02-17 | Phase 4 enterprise features + Linkerd mTLS validated |
+| 2026-02-15 | Phase 3 complete — load test baseline, chaos engineering done |

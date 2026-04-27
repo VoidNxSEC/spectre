@@ -26,5 +26,53 @@ A cola que une o NixOS, o Kubernetes e o Enxame é o SDD.
 - A execução do código (Nix/YAML) só ocorre de forma automatizada (via GitOps) após o humano aprovar a Spec.
 - Resultado: Execução implacável, determinística e livre de erros mecânicos.
 
+## 5. Spectre como AI Event Driven (Pivot 2026-04-27)
+
+O próximo passo natural da plataforma: Spectre para de ser um roteador passivo de eventos e torna-se o **backbone reativo de AI** do ecossistema.
+
+**O princípio fundamental**: não substituir nenhum stack existente — observar todos e agir sobre o que enxerga.
+
+```
+eventos chegam  →  reasoning layer  →  ações saem
+```
+
+O ganho é de 80%+ de aproveitamento da observabilidade já existente (NATS, TimescaleDB, Prometheus, Jaeger), agora com triggers reais e ações concretas. O ambiente multi-camada de confinamento (systemd hardening, NixOS modules, mTLS Linkerd, RBAC NATS) garante que a reatividade acontece sob controle — não como "vibe automation".
+
+**Estágios da maturidade reativa**:
+
+| Estágio | Mecanismo | Quando |
+|---------|-----------|--------|
+| 1 — Determinístico | Regras + thresholds (ex: queue_depth > N → scale up) | Phase 5 |
+| 2 — Contextual | Modelo leve lê histórico de ADRs do TimescaleDB | Phase 6 |
+| 3 — Autônomo | Spectre detecta modelo degradado, aciona Neoland para retraining, promove após ADR | Futuro |
+
+**Domínio de atuação de cada stack**:
+
+| Stack | Papel |
+|-------|-------|
+| `ml-ops-api` | Inference gateway — produz eventos de latência, falhas, circuit breaker |
+| `neoland` | Agent pipeline — produz ADRs, decisões de risco, checkpoints |
+| `sentinel` | Orquestrador host — produz alertas de anomalia |
+| **`spectre`** | **Backbone AI Event Driven — consome tudo, decide, age** |
+
+**Subjects canônicos**:
+
+```
+# Produtores
+ml_offload.inference.completed
+ml_offload.inference.failed
+ml_offload.queue.depth
+neoland.pipeline.output.v1
+sentinel.alert.v1
+
+# Spectre output (ações)
+spectre.ai.scale.v1
+spectre.ai.rollback.v1
+spectre.ai.alert.v1
+spectre.ai.action.v1   (genérico)
+```
+
+O resultado é elegante: um sistema que usa seus próprios logs como combustível, aprende com o histórico de decisões dos agentes, e evolui sua capacidade de reação sem necessitar de intervenção humana para os casos nominais.
+
 ---
-*Este documento serve como a bússola moral e arquitetural para a evolução contínua da infraestrutura híbrida NixOS + Kubernetes.*
+*Este documento serve como a bússola moral e arquitetural para a evolução contínua da infraestrutura híbrida NixOS + Kubernetes + AI Event Driven.*
