@@ -109,6 +109,24 @@
       "deny_purge": false
     },
     {
+      "name": "QUALITY",
+      "subjects": ["quality.>"],
+      "description": "Quality telemetry events — voidnx-api http requests, domain ops, errors",
+      "retention": "limits",
+      "storage": "file",
+      "max_consumers": -1,
+      "max_msgs": 2000000,
+      "max_bytes": 1073741824,
+      "max_age": 2592000000000000,
+      "max_msg_size": 262144,
+      "num_replicas": 1,
+      "discard": "old",
+      "duplicate_window": 60000000000,
+      "allow_rollup_hdrs": false,
+      "deny_delete": false,
+      "deny_purge": false
+    },
+    {
       "name": "COST",
       "subjects": ["cost.>"],
       "description": "LLM cost accounting events — cost.incurred.v1",
