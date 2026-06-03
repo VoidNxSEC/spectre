@@ -1,0 +1,44 @@
+[package]
+name = "spectre-ai-reactor"
+version = "0.1.0"
+edition = "2021"
+description = "AI Event Reactor — consumes AI events and emits reactive actions"
+
+[dependencies]
+# Workspace crates
+spectre-core = { path = "../spectre-core" }
+spectre-events = { path = "../spectre-events" }
+
+# Async runtime
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+
+# NATS
+async-nats = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Database
+sqlx = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# HTTP client for MLflow
+reqwest = { version = "0.11", features = ["json"] }
+
+# Concurrency
+parking_lot = "0.12"

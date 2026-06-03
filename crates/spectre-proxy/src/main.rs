@@ -9,6 +9,8 @@ use axum::{
     Json, Router,
 };
 use dashmap::DashMap;
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::server::conn::auto::Builder as AutoBuilder;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -20,6 +22,8 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
+use tokio_rustls::TlsAcceptor;
+use tower::ServiceExt;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
 
@@ -402,29 +406,73 @@ async fn main() -> Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
     if tls_enabled {
-        // TODO: Implement TLS support using axum-server with tls-rustls feature
-        // Current implementation has type compatibility issues between tower and hyper services
-        warn!("TLS is enabled but not yet implemented. Falling back to HTTP.");
+        let cert_path = std::env::var("TLS_CERT_PATH")
+            .unwrap_or_else(|_| "certs/server.crt".to_string());
+        let key_path = std::env::var("TLS_KEY_PATH")
+            .unwrap_or_else(|_| "certs/server.key".to_string());
 
-        info!(
-            "Spectre Proxy listening on {} (TLS disabled - not implemented)",
-            addr
-        );
+        let certs = load_certs(&cert_path)?;
+        let key = load_key(&key_path)?;
 
+        let tls_config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .map_err(|e| anyhow::anyhow!("TLS config error: {}", e))?;
+
+        let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
         let listener = TcpListener::bind(addr).await?;
-        axum::serve(
-            listener,
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .with_graceful_shutdown(spectre_core::shutdown_signal())
-        .await?;
+        info!("Spectre Proxy listening on {} (TLS)", addr);
+
+        let shutdown = spectre_core::shutdown_signal();
+        tokio::pin!(shutdown);
+
+        loop {
+            tokio::select! {
+                biased;
+                _ = &mut shutdown => {
+                    info!("Spectre Proxy (TLS) shutting down");
+                    break;
+                }
+                result = listener.accept() => {
+                    let (tcp_stream, peer_addr) = match result {
+                        Ok(v) => v,
+                        Err(e) => { error!("TCP accept error: {}", e); continue; }
+                    };
+                    let acceptor = tls_acceptor.clone();
+                    let app = app.clone();
+                    tokio::spawn(async move {
+                        let tls_stream = match acceptor.accept(tcp_stream).await {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("TLS handshake failed from {}: {}", peer_addr, e);
+                                return;
+                            }
+                        };
+                        let io = TokioIo::new(tls_stream);
+                        let svc = hyper::service::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
+                            let app = app.clone();
+                            async move {
+                                let req = req.map(Body::new);
+                                app.oneshot(req).await
+                            }
+                        });
+                        if let Err(e) = AutoBuilder::new(TokioExecutor::new())
+                            .serve_connection_with_upgrades(io, svc)
+                            .await
+                        {
+                            warn!("Connection error from {}: {}", peer_addr, e);
+                        }
+                    });
+                }
+            }
+        }
     } else {
         let env = std::env::var("SPECTRE_ENV").unwrap_or_else(|_| "dev".to_string());
         if env != "dev" {
             warn!("TLS is disabled outside of development environment. Set TLS_ENABLED=true for production.");
         }
 
-        info!("Spectre Proxy listening on {} (TLS disabled)", addr);
+        info!("Spectre Proxy listening on {} (HTTP)", addr);
 
         let listener = TcpListener::bind(addr).await?;
         axum::serve(
@@ -701,7 +749,6 @@ async fn proxy_to_neutron(
 // ── TLS Helpers ────────────────────────────────────────────────────────────
 
 /// Load TLS certificates from PEM file
-#[allow(dead_code)]
 fn load_certs(path: &str) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>> {
     let cert_file = std::fs::File::open(path)
         .map_err(|e| anyhow::anyhow!("Failed to open cert file {}: {}", path, e))?;
@@ -719,7 +766,6 @@ fn load_certs(path: &str) -> Result<Vec<rustls::pki_types::CertificateDer<'stati
 }
 
 /// Load TLS private key from PEM file
-#[allow(dead_code)]
 fn load_key(path: &str) -> Result<rustls::pki_types::PrivateKeyDer<'static>> {
     let key_file = std::fs::File::open(path)
         .map_err(|e| anyhow::anyhow!("Failed to open key file {}: {}", path, e))?;

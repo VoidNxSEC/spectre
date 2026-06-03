@@ -26,6 +26,7 @@ jsonwebtoken = { version = "10.3", features = ["rust_crypto"] }
 secrecy = { version = "0.8", features = ["serde"] }
 reqwest = { version = "0.11", features = ["json"] }
 dashmap = "5"
+hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["tokio", "server", "server-auto"] }
 
 [dev-dependencies]
