@@ -2,7 +2,7 @@ use crate::cloudflare::CloudflareClient;
 use spectre_core::{Result, ServiceId, SpectreError};
 use spectre_events::{Event, EventBus, EventHandler, EventType};
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 fn cf_err(e: impl std::fmt::Display) -> SpectreError {
     SpectreError::internal(format!("Cloudflare: {}", e))

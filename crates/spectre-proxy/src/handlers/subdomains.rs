@@ -2,7 +2,7 @@ use crate::cloudflare::CloudflareClient;
 use spectre_core::{Result, ServiceId, SpectreError};
 use spectre_events::{Event, EventBus, EventHandler, EventType};
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 fn cf_err(e: impl std::fmt::Display) -> SpectreError {
     SpectreError::internal(format!("Cloudflare: {}", e))
@@ -22,7 +22,7 @@ impl SubdomainHandler {
     }
 
     async fn handle_created(&self, event: Event) -> Result<()> {
-        let prefix = event.payload["prefix"].as_str().unwrap_or("");
+        let _prefix = event.payload["prefix"].as_str().unwrap_or("");
         let full_name = event.payload["full_name"].as_str().unwrap_or("?");
         let target = event.payload["target"].as_str().unwrap_or("");
         let record_type = event.payload["record_type"].as_str().unwrap_or("A");
