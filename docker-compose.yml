@@ -10,19 +10,14 @@ services:
       - "4222:4222" # Client connections
       - "8222:8222" # HTTP monitoring
       - "6222:6222" # Cluster routing
-    command:
-      [
-        "--http_port=8222",
-        "--jetstream",
-        "--store_dir=/data"
-      ]
+    command: ["--http_port=8222", "--jetstream", "--store_dir=/data"]
     volumes:
       - nats-data:/data
     networks:
       - spectre-net
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz" ]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -32,7 +27,7 @@ services:
     image: timescale/timescaledb:latest-pg16
     container_name: spectre-timescaledb
     ports:
-      - "5432:5432"
+      - "4382:4382"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-spectre}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
@@ -44,7 +39,7 @@ services:
       - spectre-net
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U spectre" ]
+      test: ["CMD-SHELL", "pg_isready -U spectre"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,7 +62,16 @@ services:
       - spectre-net
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD}", "RETURN 1" ]
+      test:
+        [
+          "CMD",
+          "cypher-shell",
+          "-u",
+          "neo4j",
+          "-p",
+          "${NEO4J_PASSWORD}",
+          "RETURN 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -78,8 +82,8 @@ services:
     container_name: spectre-jaeger
     ports:
       - "16686:16686" # Jaeger UI
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     networks:
@@ -104,7 +108,7 @@ services:
     image: grafana/grafana:10.2.3
     container_name: spectre-grafana
     ports:
-      - "3001:3000"
+      - "3005:3005"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}

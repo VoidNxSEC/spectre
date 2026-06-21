@@ -10,6 +10,7 @@ members = [
     "crates/spectre-proxy",
     "crates/spectre-secrets",
     "crates/spectre-observability",
+    "crates/spectre-ai-reactor",
 
     # Domain Services (Existing projects - to be migrated)
     # "crates/agent-os/*",

@@ -358,62 +358,64 @@ Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
 **Priority**: High
 **Goal**: Define the canonical subject hierarchy for all AI events across stacks.
 **Tasks**:
-- [ ] Define producer subjects: `ml_offload.inference.*`, `neoland.pipeline.*`, `sentinel.alert.*`
-- [ ] Define Spectre output subjects: `spectre.ai.action.v1`, `spectre.ai.scale.v1`, `spectre.ai.rollback.v1`, `spectre.ai.alert.v1`
-- [ ] Document schema per subject (JSON envelope: `source`, `ts`, `payload`, `correlation_id`)
-- [ ] Add JetStream stream `SPECTRE_AI_EVENTS` (7d retention, at-least-once delivery)
-- [ ] ADR: AI event contract between stacks
+- [x] Define producer subjects: `ml_offload.inference.*`, `neoland.pipeline.*`, `sentinel.alert.*`
+- [x] Define Spectre output subjects: `spectre.ai.action.v1`, `spectre.ai.scale.v1`, `spectre.ai.rollback.v1`, `spectre.ai.alert.v1`
+- [x] Document schema per subject (JSON envelope: `source`, `ts`, `payload`, `correlation_id`)
+- [x] Add JetStream stream `SPECTRE_AI_EVENTS` (7d retention, at-least-once delivery)
+- [x] ADR: AI event contract between stacks
 
 #### #51: AI Event Consumers (Rust crate `spectre-ai-reactor`)
 **Priority**: High
 **Goal**: Durable JetStream consumers that process AI events and emit reactive actions.
 **Tasks**:
-- [ ] Consumer: `ml_offload.inference.completed` → feed MLflow run via HTTP
-- [ ] Consumer: `ml_offload.inference.failed` → increment failure counter, check threshold → emit rollback
-- [ ] Consumer: `neoland.pipeline.output.v1` → persist ADR to TimescaleDB (session, decision, risk_level)
-- [ ] Consumer: `sentinel.alert.v1` → emit `spectre.ai.alert.v1` with enriched context
-- [ ] Pull consumer with explicit ack, max_deliver=5 (mirrors neoland's ledger-subscriber pattern)
+- [x] Consumer: `ml_offload.inference.completed` → feed MLflow run via HTTP
+- [x] Consumer: `ml_offload.inference.failed` → increment failure counter, check threshold → emit rollback
+- [x] Consumer: `neoland.pipeline.output.v1` → persist ADR to TimescaleDB (session, decision, risk_level)
+- [x] Consumer: `sentinel.alert.v1` → emit `spectre.ai.alert.v1` with enriched context
+- [x] Pull consumer with explicit ack, max_deliver=5 (mirrors neoland's ledger-subscriber pattern)
 
 #### #52: Reasoning Layer (Deterministic First)
 **Priority**: High
 **Goal**: Rules-based reactor that decides what action to emit based on event context.
 **Tasks**:
-- [ ] Rule: `inference_failed_total > threshold` AND `circuit_breaker_open = true` → emit rollback to last stable model
-- [ ] Rule: `queue_depth > N` for T seconds → emit scale-up to KEDA
-- [ ] Rule: `neoland.risk_level = critical` → emit alert + pause pipeline flag via mmap IPC
-- [ ] Rule: `consecutive_failures = 0` after rollback → emit `spectre.ai.scale.v1` scale-down
-- [ ] Config: thresholds via NixOS module options (no hardcoded values)
-- [ ] Extension point: plug in lightweight LLM for contextual decisions (Phase 6)
+- [x] Rule: `inference_failed_total > threshold` AND `circuit_breaker_open = true` → emit rollback to last stable model
+- [x] Rule: `queue_depth > N` for T seconds → emit scale-up to KEDA
+- [x] Rule: `neoland.risk_level = critical` → emit alert + pause pipeline flag via mmap IPC
+- [x] Rule: `consecutive_failures = 0` after rollback → emit `spectre.ai.scale.v1` scale-down
+- [x] Config: thresholds via NixOS module options (no hardcoded values)
+- [x] Extension point: plug in lightweight LLM for contextual decisions (Phase 6)
 
 #### #53: KEDA ScaledObject for llama-server
 **Priority**: Medium
 **Goal**: Auto-scale inference capacity based on NATS queue depth events from ml-ops-api.
 **Tasks**:
-- [ ] Define KEDA `ScaledObject` for llama-server Deployment
-- [ ] Trigger: NATS subject `ml_offload.queue.depth` metric (custom NATS scaler)
-- [ ] Cooldown: 60s scale-down delay (avoid flapping)
-- [ ] Min/max replicas configurable via NixOS Helm values
-- [ ] Test: load spike → scale-up in <30s → scale-down after cooldown
+- [x] Define KEDA `ScaledObject` for llama-server Deployment
+- [x] Trigger: NATS subject `ml_offload.queue.depth` metric (custom NATS scaler)
+- [x] Cooldown: 60s scale-down delay (avoid flapping)
+- [x] Min/max replicas configurable via NixOS Helm values
+- [x] Test: load spike → scale-up in <30s → scale-down after cooldown
 
 #### #54: ADR Intelligence (TimescaleDB)
 **Priority**: Medium
 **Goal**: Index all Neoland ADRs in TimescaleDB for trend analysis and decision history.
 **Tasks**:
-- [ ] TimescaleDB table: `ai_decisions(ts, session_id, source, risk_level, status, decision TEXT)`
-- [ ] Consumer writes ADR checkpoint events → TimescaleDB
-- [ ] Grafana dashboard: risk_level distribution over time, escalation rate, session frequency
-- [ ] Query: "last N decisions with risk_level=critical" → feed as context to reasoning layer
-- [ ] ADR: How historical context improves reactor decisions
+- [x] TimescaleDB table: `ai_decisions(ts, session_id, source, risk_level, status, decision TEXT)`
+- [x] Consumer writes ADR checkpoint events → TimescaleDB
+- [x] Grafana dashboard: risk_level distribution over time, escalation rate, session frequency
+- [x] Query: "last N decisions with risk_level=critical" → feed as context to reasoning layer
+- [x] ADR: How historical context improves reactor decisions
 
 #### #55: NixOS Module (`spectre-ai-reactor.nix`)
 **Priority**: Medium
 **Goal**: Declarative module for the AI reactor service — no hardcoded values, sops secrets.
 **Tasks**:
-- [ ] `services.spectre-ai-reactor.enable`
-- [ ] Options: `natsUrl`, `mlflowUrl`, `thresholds.*`, `timescaledbUrl`
-- [ ] Secrets: `apiKeysSecretFile` (sops-nix EnvironmentFile pattern)
-- [ ] systemd hardening: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`
-- [ ] `nix flake check` validation
+- [x] `services.spectre-ai-reactor.enable`
+- [x] Options: `natsUrl`, `mlflowUrl`, `thresholds.*`, `timescaledbUrl`
+- [x] Secrets: `apiKeysSecretFile` (sops-nix EnvironmentFile pattern)
+- [x] systemd hardening: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`
+- [x] `nix flake check` validation
+
+### ✅ Phase 5: AI Event Driven — Complete (6/6 tasks)
 
 #### #56: NixOS-First Strategy (Long Term)
 **Priority**: Low — philosophical / strategic
@@ -452,18 +454,14 @@ Formal wrk2 benchmark deferred to production neutron deployment (Phase 4).*
 - **Phase 2**: Production readiness ✅ (22 tasks)
 - **Phase 3**: Validation & testing ✅ (7 tasks)
 - **Phase 4**: Enterprise features ✅ (#43 Security + #45 Linkerd + #47 Chaos)
+- **Phase 5**: AI Event Driven ✅ (#50–#55 — `spectre-ai-reactor` crate)
 
 ### In Progress
 - **Phase 4**: #46 Multi-Region Strategy 🔄
 
-### Planned
-- **Phase 5**: AI Event Driven 📅 (7 goals — #50–#56, defined 2026-04-27)
-- **Phase 6**: Contextual AI Reactor 💭 (Future)
-
 ### Task Breakdown
-- ✅ **Completed**: 31 tasks (Phase 1–4)
+- ✅ **Completed**: 37 tasks (Phase 1–5)
 - 🔄 **In Progress**: #46 Multi-Region
-- 📅 **Planned**: 7 goals (Phase 5 AI Event Driven)
 - 💭 **Future**: Phase 6 features
 
 ---
