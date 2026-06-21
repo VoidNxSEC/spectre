@@ -73,6 +73,16 @@ impl<B> tower_http::trace::MakeSpan<B> for OtelMakeSpan {
     }
 }
 
+// ── Event handlers ──────────────────────────────────────────────────────────
+
+mod cloudflare;
+mod handlers;
+
+use cloudflare::CloudflareClient;
+use handlers::deployments::DeploymentHandler;
+use handlers::domains::DomainHandler;
+use handlers::subdomains::SubdomainHandler;
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -369,6 +379,52 @@ async fn main() -> Result<()> {
         )),
         event_bus: Arc::new(event_bus),
     };
+
+    // 4.5. Initialize Cloudflare client (from SOPS secrets in prod)
+    let cf_client = CloudflareClient::from_env().ok();
+    if cf_client.is_some() {
+        info!("☁️  Cloudflare client initialized");
+    } else {
+        warn!("☁️  Cloudflare client NOT initialized — CF_API_TOKEN missing. Domain handlers will skip Cloudflare operations.");
+    }
+
+    if let Some(cf_client) = cf_client {
+        let cf = Arc::new(cf_client);
+        let event_bus = state.event_bus.clone();
+
+        // Spawn domain subscriber
+        let domain_handler = DomainHandler::new(cf.clone(), event_bus.clone());
+        let domain_sub = event_bus.subscribe("domain.*.v1").await?;
+        let mut domain_subscriber = spectre_events::Subscriber::new(domain_sub, "domain.*.v1");
+        tokio::spawn(async move {
+            if let Err(e) = domain_subscriber.listen(domain_handler).await {
+                error!("Domain subscriber died: {}", e);
+            }
+        });
+        info!("📡 Subscribed to domain.*.v1");
+
+        // Spawn subdomain subscriber
+        let subdomain_handler = SubdomainHandler::new(cf.clone(), event_bus.clone());
+        let subdomain_sub = event_bus.subscribe("subdomain.*.v1").await?;
+        let mut subdomain_subscriber = spectre_events::Subscriber::new(subdomain_sub, "subdomain.*.v1");
+        tokio::spawn(async move {
+            if let Err(e) = subdomain_subscriber.listen(subdomain_handler).await {
+                error!("Subdomain subscriber died: {}", e);
+            }
+        });
+        info!("📡 Subscribed to subdomain.*.v1");
+
+        // Spawn deployment subscriber
+        let deployment_handler = DeploymentHandler::new(cf.clone(), event_bus.clone());
+        let deployment_sub = event_bus.subscribe("deployment.*.v1").await?;
+        let mut deployment_subscriber = spectre_events::Subscriber::new(deployment_sub, "deployment.*.v1");
+        tokio::spawn(async move {
+            if let Err(e) = deployment_subscriber.listen(deployment_handler).await {
+                error!("Deployment subscriber died: {}", e);
+            }
+        });
+        info!("📡 Subscribed to deployment.*.v1");
+    }
 
     // 5. Build router
     // Public routes (no auth)

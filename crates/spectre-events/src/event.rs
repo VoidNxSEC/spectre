@@ -99,6 +99,38 @@ pub enum EventType {
     #[serde(rename = "cognition.insight.generated.v1")]
     CognitionInsightGenerated,
 
+    // ── Cloudflare Domain Management (voidnx-api → Spectre → Cloudflare API) ──
+    #[serde(rename = "domain.created.v1")]
+    DomainCreated,
+    #[serde(rename = "domain.updated.v1")]
+    DomainUpdated,
+    #[serde(rename = "domain.deleted.v1")]
+    DomainDeleted,
+    #[serde(rename = "domain.list.request.v1")]
+    DomainListRequest,
+    #[serde(rename = "domain.list.response.v1")]
+    DomainListResponse,
+
+    // ── Subdomain Management ──
+    #[serde(rename = "subdomain.created.v1")]
+    SubdomainCreated,
+    #[serde(rename = "subdomain.updated.v1")]
+    SubdomainUpdated,
+    #[serde(rename = "subdomain.deleted.v1")]
+    SubdomainDeleted,
+
+    // ── Deployment (Cloudflare Workers/Pages) ──
+    #[serde(rename = "deployment.requested.v1")]
+    DeploymentRequested,
+    #[serde(rename = "deployment.status.v1")]
+    DeploymentStatus,
+
+    // ── Cloudflare Operations (Spectre → Cloudflare → broadcast) ──
+    #[serde(rename = "cloudflare.dns.synced.v1")]
+    CloudflareDnsSynced,
+    #[serde(rename = "cloudflare.worker.deployed.v1")]
+    CloudflareWorkerDeployed,
+
     // Generic/Custom event
     #[serde(rename = "custom")]
     Custom(String),
@@ -123,7 +155,7 @@ impl EventType {
     pub fn is_request(&self) -> bool {
         matches!(
             self,
-            Self::LlmRequest | Self::InferenceRequest | Self::AnalysisRequest | Self::RagQuery
+            Self::LlmRequest | Self::InferenceRequest | Self::AnalysisRequest | Self::RagQuery | Self::DomainListRequest
         )
     }
 
@@ -133,6 +165,7 @@ impl EventType {
             Self::LlmRequest => Some(Self::LlmResponse),
             Self::InferenceRequest => Some(Self::InferenceResponse),
             Self::AnalysisRequest => Some(Self::AnalysisResponse),
+            Self::DomainListRequest => Some(Self::DomainListResponse),
             _ => None,
         }
     }
@@ -372,6 +405,38 @@ mod tests {
         assert_eq!(
             EventType::CognitionInsightGenerated.subject(),
             "cognition.insight.generated.v1"
+        );
+    }
+
+    #[test]
+    fn test_cloudflare_domain_event_subjects() {
+        assert_eq!(EventType::DomainCreated.subject(), "domain.created.v1");
+        assert_eq!(EventType::DomainDeleted.subject(), "domain.deleted.v1");
+        assert_eq!(EventType::DomainListRequest.subject(), "domain.list.request.v1");
+        assert_eq!(EventType::DomainListResponse.subject(), "domain.list.response.v1");
+        assert_eq!(EventType::SubdomainCreated.subject(), "subdomain.created.v1");
+        assert_eq!(EventType::SubdomainDeleted.subject(), "subdomain.deleted.v1");
+    }
+
+    #[test]
+    fn test_deployment_event_subjects() {
+        assert_eq!(EventType::DeploymentRequested.subject(), "deployment.requested.v1");
+        assert_eq!(EventType::DeploymentStatus.subject(), "deployment.status.v1");
+    }
+
+    #[test]
+    fn test_cloudflare_op_event_subjects() {
+        assert_eq!(EventType::CloudflareDnsSynced.subject(), "cloudflare.dns.synced.v1");
+        assert_eq!(EventType::CloudflareWorkerDeployed.subject(), "cloudflare.worker.deployed.v1");
+    }
+
+    #[test]
+    fn test_domain_request_response_pair() {
+        assert!(EventType::DomainListRequest.is_request());
+        assert!(!EventType::DomainListResponse.is_request());
+        assert_eq!(
+            EventType::DomainListRequest.response_type(),
+            Some(EventType::DomainListResponse)
         );
     }
 
