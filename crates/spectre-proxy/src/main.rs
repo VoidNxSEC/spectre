@@ -79,6 +79,7 @@ mod cloudflare;
 mod handlers;
 
 use cloudflare::CloudflareClient;
+use handlers::cloudflare::CloudflareHandler;
 use handlers::deployments::DeploymentHandler;
 use handlers::domains::DomainHandler;
 use handlers::subdomains::SubdomainHandler;
@@ -424,6 +425,17 @@ async fn main() -> Result<()> {
             }
         });
         info!("📡 Subscribed to deployment.*.v1");
+
+        // Spawn Cloudflare ops handler (request-reply, replies to caller's inbox
+        // instead of broadcasting — see handlers::cloudflare for why this can't
+        // reuse spectre_events::Subscriber like the handlers above).
+        let cloudflare_handler = CloudflareHandler::new(cf.clone(), event_bus.clone());
+        tokio::spawn(async move {
+            if let Err(e) = cloudflare_handler.listen("cloudflare.*.v1").await {
+                error!("Cloudflare ops handler died: {}", e);
+            }
+        });
+        info!("📡 Subscribed to cloudflare.*.v1 (request-reply)");
     }
 
     // 5. Build router

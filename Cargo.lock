@@ -2960,6 +2960,7 @@ dependencies = [
  "async-trait",
  "axum 0.7.9",
  "dashmap",
+ "futures",
  "hyper 1.8.1",
  "hyper-util",
  "jsonwebtoken",

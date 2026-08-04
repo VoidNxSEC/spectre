@@ -131,6 +131,12 @@ pub enum EventType {
     #[serde(rename = "cloudflare.worker.deployed.v1")]
     CloudflareWorkerDeployed,
 
+    // ── Cloudflare Ops (voidnx-api → Spectre, request-reply) ──
+    #[serde(rename = "cloudflare.workers.list.request.v1")]
+    CloudflareWorkersListRequest,
+    #[serde(rename = "cloudflare.workers.list.response.v1")]
+    CloudflareWorkersListResponse,
+
     // Generic/Custom event
     #[serde(rename = "custom")]
     Custom(String),
@@ -155,7 +161,12 @@ impl EventType {
     pub fn is_request(&self) -> bool {
         matches!(
             self,
-            Self::LlmRequest | Self::InferenceRequest | Self::AnalysisRequest | Self::RagQuery | Self::DomainListRequest
+            Self::LlmRequest
+                | Self::InferenceRequest
+                | Self::AnalysisRequest
+                | Self::RagQuery
+                | Self::DomainListRequest
+                | Self::CloudflareWorkersListRequest
         )
     }
 
@@ -166,6 +177,7 @@ impl EventType {
             Self::InferenceRequest => Some(Self::InferenceResponse),
             Self::AnalysisRequest => Some(Self::AnalysisResponse),
             Self::DomainListRequest => Some(Self::DomainListResponse),
+            Self::CloudflareWorkersListRequest => Some(Self::CloudflareWorkersListResponse),
             _ => None,
         }
     }
@@ -428,6 +440,24 @@ mod tests {
     fn test_cloudflare_op_event_subjects() {
         assert_eq!(EventType::CloudflareDnsSynced.subject(), "cloudflare.dns.synced.v1");
         assert_eq!(EventType::CloudflareWorkerDeployed.subject(), "cloudflare.worker.deployed.v1");
+    }
+
+    #[test]
+    fn test_cloudflare_workers_list_request_response_pair() {
+        assert_eq!(
+            EventType::CloudflareWorkersListRequest.subject(),
+            "cloudflare.workers.list.request.v1"
+        );
+        assert_eq!(
+            EventType::CloudflareWorkersListResponse.subject(),
+            "cloudflare.workers.list.response.v1"
+        );
+        assert!(EventType::CloudflareWorkersListRequest.is_request());
+        assert!(!EventType::CloudflareWorkersListResponse.is_request());
+        assert_eq!(
+            EventType::CloudflareWorkersListRequest.response_type(),
+            Some(EventType::CloudflareWorkersListResponse)
+        );
     }
 
     #[test]
